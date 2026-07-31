@@ -103,9 +103,17 @@ export default function NotesRenderer({ notes }) {
 
   // Manually-typed notes (or older chapters saved before this update) are a
   // plain string — show them simply, no template.
-  if (typeof notes === 'string') {
-    return <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: 15 }}>{notes}</div>;
+ if (typeof notes === 'string') {
+  try {
+    notes = JSON.parse(notes);
+  } catch {
+    return (
+      <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, fontSize: 15 }}>
+        {notes}
+      </div>
+    );
   }
+}
 
   return (
     <div className="notes-doc">
