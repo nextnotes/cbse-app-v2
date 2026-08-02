@@ -133,6 +133,9 @@ export default function Dashboard() {
           <a href="/mock-tests" className="btn secondary" style={{ marginLeft: 12, padding: '6px 12px', textDecoration: 'none' }}>
             Mock Tests
           </a>
+          <a href="/feedback" className="btn secondary" style={{ marginLeft: 8, padding: '6px 12px', textDecoration: 'none' }}>
+            💬 Feedback
+          </a>
           <button className="btn secondary" style={{ marginLeft: 8, padding: '6px 12px' }} onClick={handleLogout}>
             Log out
           </button>

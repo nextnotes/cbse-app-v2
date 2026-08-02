@@ -10,7 +10,7 @@ const SUBJECTS = ['English', 'Odia', 'Math', 'Science', 'SST', 'Computer'];
 export default function AdminDashboard() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
-  const [mode, setMode] = useState('chapters'); // 'chapters' | 'mocktests'
+  const [mode, setMode] = useState('chapters'); // 'chapters' | 'mocktests' | 'feedback'
   const [existing, setExisting] = useState([]);
 
   const [grade, setGrade] = useState('8');
@@ -287,10 +287,15 @@ export default function AdminDashboard() {
           <div className={`tab ${mode === 'mocktests' ? 'active' : ''}`} onClick={() => setMode('mocktests')}>
             Mock Tests
           </div>
+          <div className={`tab ${mode === 'feedback' ? 'active' : ''}`} onClick={() => setMode('feedback')}>
+            💬 Feedback
+          </div>
         </div>
 
         {mode === 'mocktests' ? (
           <MockTestsPanel />
+        ) : mode === 'feedback' ? (
+          <FeedbackPanel />
         ) : (
         <div className="grid cols-2">
           {/* LEFT: Create/Generate content */}
@@ -528,6 +533,124 @@ export default function AdminDashboard() {
 
 // Admin panel: create mock tests (MCQ sets), list them, and view/export
 // student results as an Excel file.
+// Admin panel: view student feedback ("how did you feel about this session?").
+// Private to admins only — not a public wall, since unmoderated student
+// messages showing publicly isn't appropriate for a school app.
+const MOOD_ICONS = { great: '😃', good: '🙂', okay: '😐', confused: '😕', frustrated: '😞' };
+const MOOD_LABELS = { great: 'Great', good: 'Good', okay: 'Okay', confused: 'Confused', frustrated: 'Frustrated' };
+
+function FeedbackPanel() {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [moodFilter, setMoodFilter] = useState('all');
+  const [displayNames, setDisplayNames] = useState({});
+
+  useEffect(() => {
+    loadFeedback();
+  }, []);
+
+  async function loadFeedback() {
+    setLoading(true);
+    const { data } = await supabase.from('feedback').select('*').order('created_at', { ascending: false });
+    setEntries(data || []);
+    setDisplayNames(Object.fromEntries((data || []).map((e) => [e.id, e.display_name || ''])));
+    setLoading(false);
+  }
+
+  async function handleDelete(id) {
+    await supabase.from('feedback').delete().eq('id', id);
+    loadFeedback();
+  }
+
+  async function toggleApprove(id) {
+    const current = entries.find((e) => e.id === id);
+    await supabase
+      .from('feedback')
+      .update({ approved: !current.approved, display_name: (displayNames[id] || '').trim() || null })
+      .eq('id', id);
+    loadFeedback();
+  }
+
+  async function saveDisplayName(id) {
+    await supabase.from('feedback').update({ display_name: (displayNames[id] || '').trim() || null }).eq('id', id);
+  }
+
+  const filtered = moodFilter === 'all' ? entries : entries.filter((e) => e.mood === moodFilter);
+
+  return (
+    <div className="card">
+      <h3 style={{ marginTop: 0 }}>Student Feedback</h3>
+      <p style={{ fontSize: 13, color: '#6b7280', marginTop: -8 }}>
+        Private to admins only. {entries.length} total.
+      </p>
+
+      <div className="tabs" style={{ flexWrap: 'wrap' }}>
+        {['all', 'great', 'good', 'okay', 'confused', 'frustrated'].map((m) => (
+          <div key={m} className={`tab ${moodFilter === m ? 'active' : ''}`} onClick={() => setMoodFilter(m)}>
+            {m === 'all' ? 'All' : `${MOOD_ICONS[m]} ${MOOD_LABELS[m]}`}
+          </div>
+        ))}
+      </div>
+
+      {loading ? (
+        <p style={{ color: '#6b7280' }}>Loading...</p>
+      ) : filtered.length === 0 ? (
+        <p style={{ color: '#6b7280' }}>No feedback yet.</p>
+      ) : (
+        filtered.map((e) => (
+          <div key={e.id} className="card" style={{ marginBottom: 10, boxShadow: 'none', background: '#f9fafc' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
+              <div>
+                <span style={{ fontSize: 20, marginRight: 8 }}>{MOOD_ICONS[e.mood] || '❓'}</span>
+                {e.rating && <span style={{ color: '#e8b93a', marginRight: 8 }}>{'★'.repeat(e.rating)}{'☆'.repeat(5 - e.rating)}</span>}
+                <strong>{e.student_name || 'Unknown student'}</strong>
+                <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 8 }}>
+                  {new Date(e.created_at).toLocaleString()}
+                </span>
+                {e.approved && (
+                  <span className="badge" style={{ marginLeft: 8, background: '#eafaf6', color: '#1f7a6c' }}>
+                    ✅ Public
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button
+                  className="btn secondary"
+                  style={{ padding: '2px 10px', fontSize: 11 }}
+                  onClick={() => toggleApprove(e.id)}
+                  disabled={!e.message}
+                  title={!e.message ? 'No message to show publicly' : ''}
+                >
+                  {e.approved ? 'Unapprove' : 'Approve to show publicly'}
+                </button>
+                <button className="btn danger" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => handleDelete(e.id)}>
+                  ✕
+                </button>
+              </div>
+            </div>
+            {e.message && (
+              <p style={{ fontSize: 14, marginTop: 8, marginBottom: 0, whiteSpace: 'pre-wrap' }}>{e.message}</p>
+            )}
+            {e.message && (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontSize: 11 }}>Public display name (shown instead of real name if approved)</label>
+                <input
+                  className="input"
+                  style={{ marginBottom: 0, padding: '6px 10px', fontSize: 13 }}
+                  placeholder="e.g. A Std 8 Student — leave blank for 'A student'"
+                  value={displayNames[e.id] ?? ''}
+                  onChange={(ev) => setDisplayNames({ ...displayNames, [e.id]: ev.target.value })}
+                  onBlur={() => saveDisplayName(e.id)}
+                />
+              </div>
+            )}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
 function MockTestsPanel() {
   const [grade, setGrade] = useState('8');
   const [subject, setSubject] = useState('SST');

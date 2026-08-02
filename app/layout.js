@@ -1,8 +1,23 @@
 import '../styles/globals.css';
 
 export const metadata = {
-  title: 'CBSE Vidyasetu — Std 6-10',
-  description: 'Notes, practice sets, mind maps & 3D models for CBSE Std 6-10',
+  title: 'CBSE Vidyasetu — Free CBSE Notes, Mock Tests & Practice for Std 6-10',
+  description:
+    'Free CBSE study platform for Class 6-10: chapter-wise notes, practice questions, mock tests with instant scoring, mind maps, videos & 3D models for English, Odia, Math, Science, SST & Computer.',
+  keywords: [
+    'CBSE notes',
+    'CBSE class 6 to 10',
+    'CBSE mock test',
+    'CBSE practice questions',
+    'CBSE Odia',
+    'CBSE study material',
+  ],
+  openGraph: {
+    title: 'CBSE Vidyasetu — Free CBSE Notes, Mock Tests & Practice',
+    description:
+      'Chapter-wise notes, mock tests, mind maps, videos & 3D models for CBSE Std 6-10 — English, Odia, Math, Science, SST & Computer.',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({ children }) {

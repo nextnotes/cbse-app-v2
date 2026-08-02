@@ -20,7 +20,8 @@
 html, body {
   padding: 0;
   margin: 0;
-  background: var(--bg);
+  background: linear-gradient(180deg, #eef3ff 0%, #f6f8fb 250px, #f6f8fb 100%);
+  background-attachment: fixed;
   color: var(--text);
   font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
 }
@@ -285,7 +286,7 @@ label {
   border-radius: 24px;
   padding: 40px 24px 36px;
   text-align: center;
-  background: linear-gradient(135deg, #6c8ef5 0%, #7fd8c9 55%, #ffd166 100%);
+  background: linear-gradient(120deg, #6a5bdb 0%, #6c8ef5 30%, #35b7a3 65%, #ffd166 100%);
   color: #fff;
   margin: 24px 0 32px;
 }
@@ -366,4 +367,175 @@ label {
   justify-content: center;
   font-size: 20px;
   margin-bottom: 10px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr; }
+}
+.stats-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, #fff8ec, #fdf1d8);
+  border: 2px dashed #e8b455;
+  border-radius: 18px;
+  padding: 18px;
+}
+.stats-icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.stats-number {
+  font-size: 24px;
+  font-weight: 800;
+  color: #b5432a;
+  line-height: 1.1;
+}
+.stats-label {
+  font-size: 13px;
+  color: #6b5330;
+  font-weight: 600;
+}
+
+.steps-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 40px 0;
+}
+@media (max-width: 560px) {
+  .steps-strip { grid-template-columns: 1fr; }
+}
+.step-item {
+  position: relative;
+  background: linear-gradient(180deg, #fff 0%, #fafbff 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 16px 18px;
+  text-align: center;
+}
+.step-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+.step-number {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-subject-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px 16px;
+  margin-top: 14px;
+}
+.mini-subject-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 56px;
+}
+.mini-subject-chip {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.14);
+}
+.mini-subject-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.auth-row {
+  display: flex;
+  gap: 12px;
+  max-width: 460px;
+  margin: 20px auto 0;
+}
+.auth-btn {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  border-radius: 18px;
+  padding: 18px 10px;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  transition: transform 0.15s ease;
+}
+.auth-btn:active {
+  transform: scale(0.97);
+}
+.auth-btn-login {
+  background: linear-gradient(150deg, #5b7fdb, #4562b8);
+}
+.auth-btn-signup {
+  background: linear-gradient(150deg, #35b7a3, #1f8f7e);
+}
+.auth-btn .auth-icon {
+  font-size: 26px;
+  display: block;
+}
+.auth-btn .auth-title {
+  font-weight: 800;
+  font-size: 15px;
+  margin-top: 6px;
+}
+.auth-btn .auth-subtitle {
+  font-size: 11px;
+  opacity: 0.9;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+@media (max-width: 380px) {
+  .auth-btn .auth-subtitle { display: none; }
+}
+
+.site-footer {
+  text-align: center;
+  color: #6b7280;
+  padding: 30px 0 20px;
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
 }
