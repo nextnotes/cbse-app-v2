@@ -51,8 +51,29 @@ export default function AdminDashboard() {
   }, [router]);
 
   async function loadContent() {
-    const { data } = await supabase.from('content').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase
+      .from('content')
+      .select('*')
+      .order('grade', { ascending: true })
+      .order('subject', { ascending: true })
+      .order('order_index', { ascending: true });
     setExisting(data || []);
+  }
+
+  async function moveChapter(id, direction) {
+    const chapter = existing.find((c) => c.id === id);
+    if (!chapter) return;
+    const siblings = existing
+      .filter((c) => c.grade === chapter.grade && c.subject === chapter.subject)
+      .sort((a, b) => a.order_index - b.order_index);
+    const idx = siblings.findIndex((c) => c.id === id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= siblings.length) return;
+    const other = siblings[swapIdx];
+
+    await supabase.from('content').update({ order_index: other.order_index }).eq('id', chapter.id);
+    await supabase.from('content').update({ order_index: chapter.order_index }).eq('id', other.id);
+    loadContent();
   }
 
   async function handleChapterPdfUpload(e) {
@@ -212,9 +233,14 @@ export default function AdminDashboard() {
 
     let error;
     if (editingId) {
+      // order_index is intentionally left out of `row` on edit — it stays
+      // whatever it already was, so editing a chapter never changes its position.
       ({ error } = await supabase.from('content').update(row).eq('id', editingId));
     } else {
-      ({ error } = await supabase.from('content').insert({ ...row, created_by: user.id }));
+      // New chapters go to the end of their grade+subject group.
+      const siblings = existing.filter((c) => c.grade === Number(grade) && c.subject === subject);
+      const nextOrderIndex = siblings.length > 0 ? Math.max(...siblings.map((c) => c.order_index || 0)) + 1 : 0;
+      ({ error } = await supabase.from('content').insert({ ...row, order_index: nextOrderIndex, created_by: user.id }));
     }
 
     setSaving(false);
@@ -509,18 +535,57 @@ export default function AdminDashboard() {
           <div className="card">
             <h3 style={{ marginTop: 0 }}>Existing chapters</h3>
             {existing.length === 0 && <p style={{ color: '#6b7280' }}>Nothing uploaded yet.</p>}
-            {existing.map((c) => (
-              <div key={c.id} style={{ padding: '10px 0', borderBottom: '1px solid #e5e9f0' }}>
-                <div style={{ fontWeight: 600 }}>{c.chapter}</div>
-                <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>
-                  Std {c.grade} · {c.subject}
-                </div>
-                <button className="btn secondary" style={{ padding: '4px 10px', fontSize: 12, marginRight: 8 }} onClick={() => handleEditChapter(c)}>
-                  Edit
-                </button>
-                <button className="btn danger" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => handleDelete(c.id)}>
-                  Delete
-                </button>
+            {Object.entries(
+              existing.reduce((groups, c) => {
+                const gradeKey = `Std ${c.grade}`;
+                groups[gradeKey] = groups[gradeKey] || {};
+                groups[gradeKey][c.subject] = groups[gradeKey][c.subject] || [];
+                groups[gradeKey][c.subject].push(c);
+                return groups;
+              }, {})
+            ).map(([gradeLabel, subjects]) => (
+              <div key={gradeLabel} style={{ marginBottom: 18 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--primary-dark)', marginTop: 10 }}>{gradeLabel}</div>
+                {Object.entries(subjects).map(([subjectName, chapters]) => (
+                  <div key={subjectName} style={{ marginTop: 8, marginLeft: 8 }}>
+                    <div className="badge" style={{ marginBottom: 6 }}>{subjectName}</div>
+                    {chapters
+                      .sort((a, b) => a.order_index - b.order_index)
+                      .map((c, i, arr) => (
+                        <div key={c.id} style={{ padding: '8px 0', borderBottom: '1px solid #e5e9f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <button
+                              className="btn secondary"
+                              style={{ padding: '0 6px', fontSize: 11, lineHeight: '18px' }}
+                              onClick={() => moveChapter(c.id, 'up')}
+                              disabled={i === 0}
+                            >
+                              ▲
+                            </button>
+                            <button
+                              className="btn secondary"
+                              style={{ padding: '0 6px', fontSize: 11, lineHeight: '18px' }}
+                              onClick={() => moveChapter(c.id, 'down')}
+                              disabled={i === arr.length - 1}
+                            >
+                              ▼
+                            </button>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{c.chapter}</div>
+                            <div style={{ marginTop: 4 }}>
+                              <button className="btn secondary" style={{ padding: '3px 9px', fontSize: 11, marginRight: 6 }} onClick={() => handleEditChapter(c)}>
+                                Edit
+                              </button>
+                              <button className="btn danger" style={{ padding: '3px 9px', fontSize: 11 }} onClick={() => handleDelete(c.id)}>
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -544,6 +609,7 @@ function FeedbackPanel() {
   const [loading, setLoading] = useState(true);
   const [moodFilter, setMoodFilter] = useState('all');
   const [displayNames, setDisplayNames] = useState({});
+  const [actionMessage, setActionMessage] = useState('');
 
   useEffect(() => {
     loadFeedback();
@@ -558,21 +624,34 @@ function FeedbackPanel() {
   }
 
   async function handleDelete(id) {
-    await supabase.from('feedback').delete().eq('id', id);
+    const { error } = await supabase.from('feedback').delete().eq('id', id);
+    if (error) {
+      setActionMessage('❌ ' + error.message);
+      return;
+    }
     loadFeedback();
   }
 
   async function toggleApprove(id) {
     const current = entries.find((e) => e.id === id);
-    await supabase
+    const { error } = await supabase
       .from('feedback')
       .update({ approved: !current.approved, display_name: (displayNames[id] || '').trim() || null })
       .eq('id', id);
+    if (error) {
+      setActionMessage('❌ ' + error.message);
+      return;
+    }
+    setActionMessage('');
     loadFeedback();
   }
 
   async function saveDisplayName(id) {
-    await supabase.from('feedback').update({ display_name: (displayNames[id] || '').trim() || null }).eq('id', id);
+    const { error } = await supabase
+      .from('feedback')
+      .update({ display_name: (displayNames[id] || '').trim() || null })
+      .eq('id', id);
+    if (error) setActionMessage('❌ ' + error.message);
   }
 
   const filtered = moodFilter === 'all' ? entries : entries.filter((e) => e.mood === moodFilter);
@@ -583,6 +662,7 @@ function FeedbackPanel() {
       <p style={{ fontSize: 13, color: '#6b7280', marginTop: -8 }}>
         Private to admins only. {entries.length} total.
       </p>
+      {actionMessage && <div className="error-text">{actionMessage}</div>}
 
       <div className="tabs" style={{ flexWrap: 'wrap' }}>
         {['all', 'great', 'good', 'okay', 'confused', 'frustrated'].map((m) => (

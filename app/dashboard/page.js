@@ -57,7 +57,7 @@ export default function Dashboard() {
         .select('*')
         .eq('grade', profile.grade)
         .eq('subject', subject)
-        .order('created_at', { ascending: true });
+        .order('order_index', { ascending: true });
       setChapters(data || []);
       setSelectedChapter(data && data.length > 0 ? data[0] : null);
       setView('notes');
