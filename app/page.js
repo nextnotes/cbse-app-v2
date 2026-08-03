@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import StatsSection from '../components/StatsSection';
+import RatingsSummary from '../components/RatingsSummary';
 import TestimonialsSection from '../components/TestimonialsSection';
 
 const SUBJECTS = [
@@ -107,6 +108,8 @@ export default function Home() {
         </div>
 
         <StatsSection />
+
+        <RatingsSummary />
 
         <TestimonialsSection />
 
