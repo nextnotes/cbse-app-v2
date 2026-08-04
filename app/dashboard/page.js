@@ -9,7 +9,7 @@ import NotesRenderer from '../../components/NotesRenderer';
 import PdfPageViewer from '../../components/PdfPageViewer';
 import { getYouTubeEmbedUrl } from '../../lib/youtube';
 
-const SUBJECTS = ['English', 'Odia', 'Math', 'Science', 'SST', 'Computer'];
+const SUBJECTS = ['English', 'Odia', 'Hindi', 'Sanskrit', 'Math', 'Science', 'SST', 'Computer'];
 
 export default function Dashboard() {
   const router = useRouter();
@@ -331,83 +331,170 @@ function PracticeSet({ questions, shortAnswerPdfUrl, longAnswerPdfUrl }) {
       </div>
 
       {activeTab === 'mcq' && <MCQSection questions={sections.mcq} />}
-      {activeTab === 'one_liners' && <QASection questions={sections.one_liners} compact />}
-      {activeTab === 'short_answer' && <QASection questions={sections.short_answer} pdfUrl={shortAnswerPdfUrl} />}
-      {activeTab === 'long_answer' && <QASection questions={sections.long_answer} pdfUrl={longAnswerPdfUrl} />}
+      {activeTab === 'one_liners' && <QASection questions={sections.one_liners} compact accent="#5b7fdb" />}
+      {activeTab === 'short_answer' && <QASection questions={sections.short_answer} pdfUrl={shortAnswerPdfUrl} accent="#35b7a3" />}
+      {activeTab === 'long_answer' && <QASection questions={sections.long_answer} pdfUrl={longAnswerPdfUrl} accent="#ff8a3d" />}
     </div>
+  );
+}
+
+// A lightweight, dependency-free celebration burst shown when a student
+// picks the correct answer. Re-mounts (via a changing `key` prop) each time
+// to replay the animation.
+function Firecracker() {
+  const particles = Array.from({ length: 12 }).map((_, i) => {
+    const angle = (Math.PI * 2 * i) / 12;
+    const distance = 45 + Math.random() * 30;
+    return {
+      tx: Math.cos(angle) * distance,
+      ty: Math.sin(angle) * distance,
+      emoji: ['🎉', '✨', '🎊', '⭐', '💥'][i % 5],
+      delay: Math.random() * 0.08,
+    };
+  });
+  return (
+    <span className="firecracker-container">
+      {particles.map((p, i) => (
+        <span
+          key={i}
+          className="firecracker-particle"
+          style={{ '--tx': `${p.tx}px`, '--ty': `${p.ty}px`, animationDelay: `${p.delay}s` }}
+        >
+          {p.emoji}
+        </span>
+      ))}
+    </span>
   );
 }
 
 function MCQSection({ questions }) {
-  const [answers, setAnswers] = useState({});
-  const [submitted, setSubmitted] = useState(false);
+  const valid = (questions || []).filter((q) => q && q.question && Array.isArray(q.options));
 
-  if (!questions || questions.length === 0) {
+  const [index, setIndex] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [revealed, setRevealed] = useState(false);
+  const [score, setScore] = useState(0);
+  const [finished, setFinished] = useState(false);
+  const [celebrateKey, setCelebrateKey] = useState(0);
+
+  if (valid.length === 0) {
     return <p style={{ color: '#6b7280' }}>No MCQs yet.</p>;
+  }
+
+  const q = valid[index];
+
+  function pick(opt) {
+    if (revealed) return;
+    setSelected(opt);
+    setRevealed(true);
+    if (opt === q.answer) {
+      setScore((s) => s + 1);
+      setCelebrateKey((k) => k + 1);
+    }
+  }
+
+  function next() {
+    if (index + 1 >= valid.length) {
+      setFinished(true);
+      return;
+    }
+    setIndex(index + 1);
+    setSelected(null);
+    setRevealed(false);
+  }
+
+  function restart() {
+    setIndex(0);
+    setSelected(null);
+    setRevealed(false);
+    setScore(0);
+    setFinished(false);
+  }
+
+  if (finished) {
+    const pct = Math.round((score / valid.length) * 100);
+    return (
+      <div className="card" style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 42 }}>{pct >= 80 ? '🏆' : pct >= 50 ? '🎯' : '💪'}</div>
+        <h3 style={{ marginBottom: 4 }}>You scored {score} / {valid.length}</h3>
+        <p style={{ color: '#6b7280', fontSize: 14, marginTop: 0 }}>{pct}% correct</p>
+        <button className="btn" onClick={restart}>Try again</button>
+      </div>
+    );
   }
 
   return (
     <div>
-      {questions.map((q, i) => {
-        if (!q || !q.question || !Array.isArray(q.options)) {
+      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8, fontWeight: 600 }}>
+        Question {index + 1} of {valid.length} · Score: {score}
+      </div>
+      <div className="card" style={{ boxShadow: 'none', border: '1.5px solid var(--primary)' }}>
+        <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 15 }}>{q.question}</div>
+        {q.options.map((opt, j) => {
+          const isSelected = selected === opt;
+          const isCorrectOpt = opt === q.answer;
+          const showCorrect = revealed && isCorrectOpt;
+          const showWrong = revealed && isSelected && !isCorrectOpt;
           return (
-            <div key={i} className="card" style={{ marginBottom: 12, boxShadow: 'none' }}>
-              <div style={{ fontSize: 13, color: '#e0645a' }}>
-                Question {i + 1} is missing data and can't be shown — check the JSON for this entry in the admin dashboard.
-              </div>
+            <div
+              key={j}
+              onClick={() => pick(opt)}
+              style={{
+                position: 'relative',
+                padding: '10px 14px',
+                borderRadius: 10,
+                border: '1.5px solid',
+                borderColor: showCorrect ? '#35b7a3' : showWrong ? '#e0645a' : isSelected ? '#5b7fdb' : '#e5e9f0',
+                background: showCorrect ? '#eafaf6' : showWrong ? '#fdecec' : isSelected ? '#eef2fc' : '#fff',
+                marginBottom: 8,
+                cursor: revealed ? 'default' : 'pointer',
+                fontSize: 14,
+              }}
+            >
+              {opt}
+              {revealed && isSelected && isCorrectOpt && <Firecracker key={celebrateKey} />}
             </div>
           );
-        }
-        return (
-          <div key={i} className="card" style={{ marginBottom: 12, boxShadow: 'none' }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>
-              {i + 1}. {q.question}
-            </div>
-            {q.options.map((opt, j) => {
-              const isSelected = answers[i] === opt;
-              const isCorrect = submitted && opt === q.answer;
-              const isWrongSelected = submitted && isSelected && opt !== q.answer;
-              return (
-                <div
-                  key={j}
-                  onClick={() => !submitted && setAnswers({ ...answers, [i]: opt })}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: '1.5px solid',
-                    borderColor: isCorrect ? '#35b7a3' : isWrongSelected ? '#e0645a' : isSelected ? '#5b7fdb' : '#e5e9f0',
-                    background: isCorrect ? '#eafaf6' : isWrongSelected ? '#fdecec' : isSelected ? '#eef2fc' : '#fff',
-                    marginBottom: 6,
-                    cursor: submitted ? 'default' : 'pointer',
-                    fontSize: 14,
-                  }}
-                >
-                  {opt}
-                </div>
-              );
-            })}
-            {submitted && q.explanation && (
-              <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>💡 {q.explanation}</div>
+        })}
+        {revealed && (
+          <>
+            {q.explanation && (
+              <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4, marginBottom: 10 }}>💡 {q.explanation}</div>
             )}
-          </div>
-        );
-      })}
-      {!submitted ? (
-        <button className="btn" onClick={() => setSubmitted(true)}>
-          Check answers
-        </button>
-      ) : (
-        <button className="btn secondary" onClick={() => { setSubmitted(false); setAnswers({}); }}>
-          Try again
-        </button>
-      )}
+            <button className="btn" onClick={next}>
+              {index + 1 >= valid.length ? 'See Results' : 'Next Question →'}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
+}
 }
 
 // Used for One-Liners, Short Answer, and Long Answer — a question with a
 // tap-to-reveal model answer, since these aren't multiple choice.
-function QASection({ questions, compact, pdfUrl }) {
+// Splits a multi-line answer into bullet points when it looks like a list
+// (multiple lines, or "- " / "1. " style markers); falls back to a plain
+// paragraph for single-line answers.
+function AnswerContent({ text }) {
+  if (!text) return <span>(no answer provided)</span>;
+  const lines = text
+    .split('\n')
+    .map((l) => l.replace(/^[-•]\s*/, '').replace(/^\d+\.\s*/, '').trim())
+    .filter(Boolean);
+
+  if (lines.length > 1) {
+    return (
+      <ul style={{ margin: 0, paddingLeft: 20 }}>
+        {lines.map((line, i) => <li key={i} style={{ marginBottom: 4 }}>{line}</li>)}
+      </ul>
+    );
+  }
+  return <span>{text}</span>;
+}
+
+function QASection({ questions, compact, pdfUrl, accent = 'var(--primary)' }) {
   const [revealed, setRevealed] = useState({});
 
   return (
@@ -433,35 +520,38 @@ function QASection({ questions, compact, pdfUrl }) {
             );
           }
           return (
-          <div key={i} className="card" style={{ marginBottom: 12, boxShadow: 'none' }}>
-            <div style={{ fontWeight: 600, marginBottom: compact ? 4 : 8 }}>
-              {i + 1}. {q.question}
-            </div>
-            {revealed[i] ? (
-              <div
-                style={{
-                  fontSize: 14,
-                  color: '#2b2f3a',
-                  background: '#f6f8fb',
-                  padding: '10px 12px',
-                  borderRadius: 8,
-                  marginTop: 6,
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: 1.6,
-                }}
-              >
-                {q.answer || '(no answer provided)'}
+            <div
+              key={i}
+              className="card"
+              style={{ marginBottom: 12, boxShadow: 'none', borderLeft: `4px solid ${accent}` }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: compact ? 4 : 8 }}>
+                {i + 1}. {q.question}
               </div>
-            ) : (
-              <button
-                className="btn secondary"
-                style={{ padding: '5px 12px', fontSize: 13 }}
-                onClick={() => setRevealed({ ...revealed, [i]: true })}
-              >
-                Show answer
-              </button>
-            )}
-          </div>
+              {revealed[i] ? (
+                <div
+                  style={{
+                    fontSize: 14,
+                    color: '#2b2f3a',
+                    background: `linear-gradient(135deg, ${accent}14, ${accent}08)`,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    marginTop: 6,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <AnswerContent text={q.answer} />
+                </div>
+              ) : (
+                <button
+                  className="btn secondary"
+                  style={{ padding: '5px 12px', fontSize: 13, borderColor: accent, color: accent }}
+                  onClick={() => setRevealed({ ...revealed, [i]: true })}
+                >
+                  Show answer
+                </button>
+              )}
+            </div>
           );
         })
       )}

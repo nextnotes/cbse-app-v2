@@ -33,6 +33,7 @@ export default function MockTests() {
         .from('mock_tests')
         .select('*')
         .eq('grade', profileData.grade)
+        .order('subject', { ascending: true })
         .order('created_at', { ascending: false });
       setTests(testsData || []);
       setLoading(false);
@@ -86,17 +87,28 @@ export default function MockTests() {
             {tests.length === 0 ? (
               <p style={{ color: '#6b7280' }}>No mock tests available yet.</p>
             ) : (
-              <div className="grid cols-2">
-                {tests.map((t) => (
-                  <div key={t.id} className="card">
-                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{t.title}</div>
-                    <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
-                      {t.subject} · {t.questions?.length || 0} questions
-                    </div>
-                    <button className="btn" onClick={() => startTest(t)}>Start Test</button>
+              Object.entries(
+                tests.reduce((groups, t) => {
+                  groups[t.subject] = groups[t.subject] || [];
+                  groups[t.subject].push(t);
+                  return groups;
+                }, {})
+              ).map(([subjectName, subjectTests]) => (
+                <div key={subjectName} style={{ marginBottom: 28 }}>
+                  <div className="badge" style={{ marginBottom: 10, fontSize: 13 }}>{subjectName}</div>
+                  <div className="grid cols-2">
+                    {subjectTests.map((t) => (
+                      <div key={t.id} className="card">
+                        <div style={{ fontWeight: 700, marginBottom: 4 }}>{t.title}</div>
+                        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+                          {t.questions?.length || 0} questions
+                        </div>
+                        <button className="btn" onClick={() => startTest(t)}>Start Test</button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))
             )}
           </div>
         ) : (

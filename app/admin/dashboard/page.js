@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
 import NotesRenderer from '../../../components/NotesRenderer';
 
-const SUBJECTS = ['English', 'Odia', 'Math', 'Science', 'SST', 'Computer'];
+const SUBJECTS = ['English', 'Odia', 'Hindi', 'Sanskrit', 'Math', 'Science', 'SST', 'Computer'];
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -96,8 +96,8 @@ export default function AdminDashboard() {
         fullText += content.items.map((item) => item.str).join(' ') + '\n\n';
       }
 
-      // Keep the request a sane size — trim very long chapter PDFs.
-      const MAX_CHARS = 18000;
+      // Keep the request a sane size — trim only extremely long chapter PDFs.
+      const MAX_CHARS = 60000;
       const trimmed = fullText.length > MAX_CHARS ? fullText.slice(0, MAX_CHARS) : fullText;
       setAiSourceText(trimmed);
 
@@ -115,7 +115,11 @@ export default function AdminDashboard() {
       }
 
       setExtractingPdf(false);
-      setMessage(`📄 Read ${pdf.numPages} page(s) — generating content now...`);
+      setMessage(
+        fullText.length > MAX_CHARS
+          ? `⚠️ This PDF is very long (${pdf.numPages} pages) — trimmed to fit. Generating now; for full coverage on very long chapters, consider splitting into 2 chapters.`
+          : `📄 Read ${pdf.numPages} page(s) — generating content now...`
+      );
 
       // Go straight into generation — no separate click needed.
       await generateWithAI('source', trimmed, chapterTitle);
@@ -745,14 +749,19 @@ function MockTestsPanel() {
   const [attempts, setAttempts] = useState([]);
   const [loadingResults, setLoadingResults] = useState(false);
 
-  const SUBJECTS = ['English', 'Odia', 'Math', 'Science', 'SST', 'Computer'];
+  const SUBJECTS = ['English', 'Odia', 'Hindi', 'Sanskrit', 'Math', 'Science', 'SST', 'Computer'];
 
   useEffect(() => {
     loadTests();
   }, []);
 
   async function loadTests() {
-    const { data } = await supabase.from('mock_tests').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase
+      .from('mock_tests')
+      .select('*')
+      .order('grade', { ascending: true })
+      .order('subject', { ascending: true })
+      .order('created_at', { ascending: false });
     setTests(data || []);
   }
 
@@ -867,18 +876,36 @@ function MockTestsPanel() {
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Existing mock tests</h3>
         {tests.length === 0 && <p style={{ color: '#6b7280' }}>No mock tests yet.</p>}
-        {tests.map((t) => (
-          <div key={t.id} style={{ padding: '10px 0', borderBottom: '1px solid #e5e9f0' }}>
-            <div style={{ fontWeight: 600 }}>{t.title}</div>
-            <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>
-              Std {t.grade} · {t.subject} · {t.questions?.length || 0} questions
-            </div>
-            <button className="btn secondary" style={{ padding: '4px 10px', fontSize: 12, marginRight: 8 }} onClick={() => viewResults(t)}>
-              View Results
-            </button>
-            <button className="btn danger" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => handleDeleteTest(t.id)}>
-              Delete
-            </button>
+        {Object.entries(
+          tests.reduce((groups, t) => {
+            const gradeKey = `Std ${t.grade}`;
+            groups[gradeKey] = groups[gradeKey] || {};
+            groups[gradeKey][t.subject] = groups[gradeKey][t.subject] || [];
+            groups[gradeKey][t.subject].push(t);
+            return groups;
+          }, {})
+        ).map(([gradeLabel, subjects]) => (
+          <div key={gradeLabel} style={{ marginBottom: 14 }}>
+            <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--primary-dark)', marginTop: 10 }}>{gradeLabel}</div>
+            {Object.entries(subjects).map(([subjectName, subjectTests]) => (
+              <div key={subjectName} style={{ marginTop: 6, marginLeft: 8 }}>
+                <div className="badge" style={{ marginBottom: 6 }}>{subjectName}</div>
+                {subjectTests.map((t) => (
+                  <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid #e5e9f0' }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>
+                      {t.questions?.length || 0} questions
+                    </div>
+                    <button className="btn secondary" style={{ padding: '3px 9px', fontSize: 11, marginRight: 6 }} onClick={() => viewResults(t)}>
+                      View Results
+                    </button>
+                    <button className="btn danger" style={{ padding: '3px 9px', fontSize: 11 }} onClick={() => handleDeleteTest(t.id)}>
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         ))}
 

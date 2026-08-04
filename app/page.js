@@ -6,6 +6,8 @@ import TestimonialsSection from '../components/TestimonialsSection';
 const SUBJECTS = [
   { name: 'English', icon: '📖', cls: 'subject-english' },
   { name: 'Odia', icon: '🌸', cls: 'subject-odia' },
+  { name: 'Hindi', icon: 'अ', cls: 'subject-hindi' },
+  { name: 'Sanskrit', icon: 'ॐ', cls: 'subject-sanskrit' },
   { name: 'Math', icon: '➗', cls: 'subject-math' },
   { name: 'Science', icon: '🔬', cls: 'subject-science' },
   { name: 'SST', icon: '🌍', cls: 'subject-sst' },

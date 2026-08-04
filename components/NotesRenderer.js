@@ -71,6 +71,31 @@ function Block({ block }) {
         </ul>
       );
 
+    case 'formula':
+      return (
+        <div className="notes-formula">
+          {block.title && <div className="notes-formula-title">{block.title}</div>}
+          <div className="notes-formula-expression">{block.expression}</div>
+          {block.note && <div className="notes-formula-note">{block.note}</div>}
+        </div>
+      );
+
+    case 'worked_example':
+      return (
+        <div className="notes-worked-example">
+          <div className="notes-worked-title">✏️ Worked Example</div>
+          <div className="notes-worked-problem">{block.problem}</div>
+          {block.steps?.length > 0 && (
+            <ol className="notes-worked-steps">
+              {block.steps.map((step, i) => <li key={i}>{step}</li>)}
+            </ol>
+          )}
+          {block.answer && (
+            <div className="notes-worked-answer">✅ Answer: {block.answer}</div>
+          )}
+        </div>
+      );
+
     case 'glossary':
       return (
         <div className="notes-glossary">
