@@ -470,10 +470,7 @@ function MCQSection({ questions }) {
     </div>
   );
 }
-}
 
-// Used for One-Liners, Short Answer, and Long Answer — a question with a
-// tap-to-reveal model answer, since these aren't multiple choice.
 // Splits a multi-line answer into bullet points when it looks like a list
 // (multiple lines, or "- " / "1. " style markers); falls back to a plain
 // paragraph for single-line answers.
