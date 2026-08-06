@@ -32,6 +32,7 @@ export default function AdminDashboard() {
   const [showAdvancedJson, setShowAdvancedJson] = useState(false);
 
   const [aiTopic, setAiTopic] = useState('');
+  const [isGrammarTopic, setIsGrammarTopic] = useState(false);
   const [aiSourceText, setAiSourceText] = useState('');
   const [extractingPdf, setExtractingPdf] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -90,14 +91,40 @@ export default function AdminDashboard() {
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
       let fullText = '';
+      // Cap how many pages we render to photos (matches server's MAX_PAGE_IMAGES).
+      // NCERT-style chapters commonly run 20-50 pages; the app's hosting (Vercel
+      // Serverless Functions) caps request bodies at ~4.5MB, so this cap + the
+      // downscaled JPEG size below are tuned together to stay safely under that.
+      const MAX_PAGE_IMAGES = 45;
+      const pageImages = [];
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         fullText += content.items.map((item) => item.str).join(' ') + '\n\n';
+
+        if (i <= MAX_PAGE_IMAGES) {
+          // Render the page to a downscaled, fairly compressed JPEG so the AI can
+          // still see any diagrams/maps/illustrations on it (for "image" blocks),
+          // while keeping total request size well under hosting limits even for
+          // a 40-50 page chapter (target: roughly 40-60KB per page once encoded).
+          const baseViewport = page.getViewport({ scale: 1 });
+          const targetWidth = 650;
+          const scale = targetWidth / baseViewport.width;
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.55);
+          pageImages.push({ page: i, mimeType: 'image/jpeg', dataBase64: dataUrl.split(',')[1] });
+        }
       }
 
       // Keep the request a sane size — trim only extremely long chapter PDFs.
-      const MAX_CHARS = 60000;
+      // (Gemini 3.6 Flash's context window comfortably fits a full chapter's
+      // worth of text; this is just a safety cap for pathological inputs.)
+      const MAX_CHARS = 400000;
       const trimmed = fullText.length > MAX_CHARS ? fullText.slice(0, MAX_CHARS) : fullText;
       setAiSourceText(trimmed);
 
@@ -118,11 +145,13 @@ export default function AdminDashboard() {
       setMessage(
         fullText.length > MAX_CHARS
           ? `⚠️ This PDF is very long (${pdf.numPages} pages) — trimmed to fit. Generating now; for full coverage on very long chapters, consider splitting into 2 chapters.`
+          : pdf.numPages > MAX_PAGE_IMAGES
+          ? `📄 Read ${pdf.numPages} page(s) — generating content now. Note: only the first ${MAX_PAGE_IMAGES} pages could be sent as photos for diagrams/maps, so any figures past page ${MAX_PAGE_IMAGES} will use a substitute reference image instead of the exact one from this PDF.`
           : `📄 Read ${pdf.numPages} page(s) — generating content now...`
       );
 
       // Go straight into generation — no separate click needed.
-      await generateWithAI('source', trimmed, chapterTitle);
+      await generateWithAI('source', trimmed, chapterTitle, pageImages);
     } catch (err) {
       setExtractingPdf(false);
       setMessage(
@@ -131,7 +160,7 @@ export default function AdminDashboard() {
     }
   }
 
-  async function generateWithAI(mode, sourceTextOverride, chapterOverride) {
+  async function generateWithAI(mode, sourceTextOverride, chapterOverride, pageImages) {
     setAiLoading(true);
     setMessage('');
     try {
@@ -145,6 +174,8 @@ export default function AdminDashboard() {
           chapter: chapterOverride ?? chapter,
           topic: aiTopic,
           sourceText: sourceTextOverride ?? aiSourceText,
+          contentType: isGrammarTopic ? 'grammar' : undefined,
+          pageImages: pageImages || [],
         }),
       });
       const data = await res.json();
@@ -357,6 +388,17 @@ export default function AdminDashboard() {
 
             <div className="card" style={{ background: '#f9fafc', boxShadow: 'none', marginBottom: 14 }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>🤖 Generate with AI</div>
+
+              {['English', 'Odia', 'Hindi', 'Sanskrit'].includes(subject) && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontWeight: 400 }}>
+                  <input
+                    type="checkbox"
+                    checked={isGrammarTopic}
+                    onChange={(e) => setIsGrammarTopic(e.target.checked)}
+                  />
+                  This is a Grammar / Vocabulary topic (not a poem or story — e.g. "Tenses", "Active-Passive Voice")
+                </label>
+              )}
 
               <label>Option A — from a topic name</label>
               <input

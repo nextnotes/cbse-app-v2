@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '../../../../lib/supabaseAdmin';
 
 const JSON_SHAPE = `Produce study material as STRICT JSON with this exact shape and nothing else
 (no markdown fences, no preamble):
@@ -34,6 +35,17 @@ STUDENT-FRIENDLY LANGUAGE — apply throughout every block's text:
 - Friendly, encouraging tone, like a favorite teacher explaining it one-on-one, not a dry textbook.
 - Include at least one simple, relatable real-life example or analogy per major concept.`;
 
+// Shared instructions for the "image" block. Photos of the actual source PDF pages
+// are sent to you (labelled "Page 1", "Page 2", ...) whenever they're available —
+// look at them. Only ever use an "image" block for a genuine diagram / map / figure /
+// illustration, never for a page that is plain body text.
+const IMAGE_BLOCK_RULES = `
+IMAGE BLOCKS — "image" ({caption, page?, search_query?}):
+- If one of the page photos you were shown clearly contains a useful diagram, map, chart, or illustration (NOT just paragraphs of text), add an "image" block right after the text it relates to, with "page" set to that page's number (the integer from the "Page N" label) and a short plain-language "caption".
+- If a genuinely useful diagram/map/photo would help here but none of the provided pages show it clearly (e.g. no page images were provided at all, or the chapter needs a well-known reference image like a labelled map or a standard diagram), use "search_query" instead of "page": a short, specific, real-world search phrase (2-6 words) that would find that exact image (e.g. "political map of India", "human digestive system diagram", "water cycle diagram"). Do not set both "page" and "search_query" on the same block.
+- Never invent a page number that wasn't shown to you. If you're not looking at any page photos and can't think of a genuinely useful search_query, skip the image block entirely rather than guessing.
+- Don't force it — only add an image block where a real textbook would actually put a figure.`;
+
 const MATH_PROMPT = `You are a CBSE Math curriculum content writer for Indian school students (Std 6-10).
 Given a topic or source text, ${JSON_SHAPE}
 
@@ -44,9 +56,11 @@ NOTES FORMAT — Math needs worked examples and formulas, not history-style time
 - "callout" ({title, text}) — use for common mistakes students make, or quick tips/shortcuts.
 - "table" — for comparing methods, formulas, or properties (e.g. types of triangles and their properties).
 - "list" — for straightforward bullet points, like properties or steps of a method.
+- "image" — use for geometric figures/diagrams a real textbook would draw (a labelled triangle, a graph, a solid shape, a number line). See IMAGE BLOCKS rules below. 1-3 per chapter where genuinely useful.
 - "glossary" — one block near the end with 5-8 key terms (e.g. "coefficient", "variable") and plain definitions.
 - ALWAYS end with a "recap" block: 4-6 short bullet points summarizing the whole chapter's key formulas/methods.
 Do NOT use a "timeline" block — it doesn't fit Math content.
+${IMAGE_BLOCK_RULES}
 ${SHARED_LANGUAGE_RULES}
 
 PRACTICE QUESTIONS — Math needs actual problems to solve, not just recall:
@@ -60,14 +74,16 @@ Cover the full breadth of the topic so questions don't repeat the same sub-point
 const LANGUAGE_PROMPT = `You are a CBSE language curriculum content writer for Indian school students (Std 6-10), writing for a language/literature subject (English, Odia, Hindi, or Sanskrit).
 Given a topic, poem, chapter, or source text, ${JSON_SHAPE}
 
-NOTES FORMAT — language subjects need vocabulary and comprehension focus, not history-style timelines. Allowed block types:
+NOTES FORMAT — language subjects need vocabulary, grammar, and comprehension focus, not history-style timelines. Allowed block types:
 - "heading" ({text}) and "paragraph" ({text}) — summarize the chapter/poem's content, theme, and message in simple words.
 - "callout" ({title, text}) — use to explain literary devices (simile, metaphor, alliteration, etc.), the poet/author's background, or a key message — 1-3 per chapter.
-- "glossary" ({items: [{term, definition}]}) — this is IMPORTANT for language subjects: include a solid vocabulary block, 8-15 difficult words from the text with simple meanings (this is word-meanings, not just technical jargon).
-- "table" — for grammar rules, verb tense charts, conjugation patterns, or comparing similar words/rules.
+- "glossary" ({items: [{term, definition}]}) — this is IMPORTANT for language subjects: include a solid vocabulary block, 12-20 difficult/new words from the text with simple meanings (this is word-meanings, not just technical jargon). Do not undershoot this — vocabulary is one of the main things students need from these notes.
+- "table" — REQUIRED whenever the text has any grammar angle at all (verb tenses, parts of speech, sentence patterns used in the chapter, conjugation, spelling rules) — a grammar rules/examples table. If the chapter genuinely has zero grammar content, you may skip this, but check carefully first.
 - "list" — for straightforward points like a character's traits, or steps in a grammar rule.
+- "image" — ONLY if a provided page photo shows a real illustration belonging to the story/poem. Language chapters rarely need this — skip unless there's a genuine illustration on a shown page.
 - ALWAYS end with a "recap" block: 4-6 short bullet points summarizing the chapter/poem's key ideas.
 Do NOT use "timeline", "formula", or "worked_example" blocks — they don't fit language content.
+${IMAGE_BLOCK_RULES}
 ${SHARED_LANGUAGE_RULES}
 
 PRACTICE QUESTIONS — language subjects need comprehension and expression practice, not just fact recall:
@@ -78,6 +94,31 @@ PRACTICE QUESTIONS — language subjects need comprehension and expression pract
 
 Cover the full breadth of the text so questions don't repeat the same sub-point. Also produce a mind map with 2 levels of depth covering the chapter's key ideas/characters/themes.`;
 
+// Standalone grammar / vocabulary topic — NOT tied to a literature passage
+// (e.g. "Tenses", "Active-Passive Voice", "Word Building"). Used when the admin
+// flags a language-subject topic as a grammar/vocabulary topic instead of a
+// literature chapter.
+const GRAMMAR_PROMPT = `You are a CBSE language curriculum content writer for Indian school students (Std 6-10), writing a GRAMMAR/VOCABULARY topic (not a literature chapter — there is no poem or story here, only the language rule itself).
+Given a topic or source text, ${JSON_SHAPE}
+
+NOTES FORMAT — this is a grammar/vocabulary reference, built almost entirely around rules, patterns and word-building, not story analysis. Allowed block types:
+- "heading" ({text}) and "paragraph" ({text}) — explain the rule itself in plain words: what it is, when to use it, why it matters.
+- "table" — the MAIN block type here: rule patterns, tense charts, conjugation tables, before/after examples (e.g. active vs passive), word-formation patterns. Include at least 2-3 tables.
+- "list" — for exceptions to the rule, common mistakes, or step-by-step "how to form it" points.
+- "callout" ({title, text}) — 2-4 of these for tricky exceptions or easily-confused cases.
+- "glossary" ({items: [{term, definition}]}) — 12-20 vocabulary words relevant to the topic (or, for pure grammar topics, key grammar terms like "auxiliary verb", "subject-verb agreement") with simple meanings and one example sentence each folded into the definition.
+- ALWAYS end with a "recap" block: 4-6 short bullet points summarizing the rule.
+Do NOT use "timeline", "formula", "worked_example", or "image" blocks — they don't fit this topic.
+${SHARED_LANGUAGE_RULES}
+
+PRACTICE QUESTIONS — heavy on applying the rule, not just remembering it:
+- MCQs: 25-40 — mostly "choose the correct form" / "identify the correct usage" style.
+- One-liners: 15-20 — quick rule recall or a single word-transformation each (e.g. "Change to past tense: 'I go'").
+- Short-answer: 10-12 — each a short set of sentences to transform/correct/complete; format the "answer" as one corrected item per line using "\n".
+- Long-answer: 4-5 — a short paragraph to rewrite applying the rule throughout, or a "explain the rule with 5 of your own examples" style question; format the "answer" as a bulleted list using "\n- ".
+
+Cover every sub-rule/pattern of the topic so questions don't repeat the same case. Also produce a mind map with 2 levels of depth covering the rule's sub-patterns/cases.`;
+
 const GENERAL_PROMPT = `You are a CBSE curriculum content writer for Indian school students (Std 6-10).
 Given a topic or source text, ${JSON_SHAPE}
 
@@ -87,8 +128,10 @@ NOTES FORMAT — build "blocks" like a polished revision-notes document, choosin
 - Use a "timeline" block ONLY for history/social-science topics with a clear chronological sequence of events/dates.
 - Use a "table" block for comparisons, classifications, or listing key figures/items with their features (e.g. rulers and their achievements, types of resources, parts of a cell).
 - Use "list" blocks for straightforward bullet points that don't need a table.
+- Use "image" blocks for maps (SST — political/physical/historical maps, movement of trade routes, locations), diagrams (Science — cycles, body systems, apparatus, processes), and illustrations (Computer — device/network diagrams). This subject group benefits the most from images — actively look for 2-5 good places to add one per chapter, not just as an afterthought. See IMAGE BLOCKS rules below.
 - Include exactly one "glossary" block near the end with 5-10 key terms and short, plain definitions.
 - ALWAYS end with exactly one "recap" block: 4-6 short bullet points summarizing the whole chapter.
+${IMAGE_BLOCK_RULES}
 ${SHARED_LANGUAGE_RULES}
 
 PRACTICE QUESTIONS — produce these counts:
@@ -99,11 +142,96 @@ PRACTICE QUESTIONS — produce these counts:
 
 Cover the full breadth of the topic so questions don't repeat the same sub-point — spread them across all the key ideas in the chapter. Also produce a mind map with 2 levels of depth covering the key sub-topics.`;
 
-function getSystemPrompt(subject) {
+function getSystemPrompt(subject, contentType) {
   const s = (subject || '').toLowerCase();
+  const isLanguage = ['english', 'odia', 'hindi', 'sanskrit'].includes(s);
+  if (isLanguage && contentType === 'grammar') return GRAMMAR_PROMPT;
   if (s === 'math') return MATH_PROMPT;
-  if (['english', 'odia', 'hindi', 'sanskrit'].includes(s)) return LANGUAGE_PROMPT;
+  if (isLanguage) return LANGUAGE_PROMPT;
   return GENERAL_PROMPT; // SST, Science, Computer
+}
+
+// Cap how many page photos we send to Gemini per request — keeps payload size
+// and token cost sane. Chapters longer than this still get full TEXT coverage;
+// they just rely on "search_query" images instead of "page" images for anything
+// past this cutoff.
+// Cap how many page photos we send to Gemini per request. NCERT-style chapters
+// commonly run 20-50 pages; the app's hosting (Vercel Serverless Functions) caps
+// request bodies at ~4.5MB, so this cap + the downscaled JPEG size below are
+// tuned together to comfortably stay under that for a 40-50 page chapter.
+// Chapters longer than this still get full TEXT coverage — pages past the
+// cutoff just fall back to "search_query" images instead of "page" images.
+const MAX_PAGE_IMAGES = 45;
+
+async function uploadPageImageToStorage(base64Data, mimeType, pageNumber) {
+  const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+  const path = `pdf-page/${Date.now()}-p${pageNumber}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const buffer = Buffer.from(base64Data, 'base64');
+  const { error } = await supabaseAdmin.storage
+    .from('chapter-images')
+    .upload(path, buffer, { contentType: mimeType, upsert: true });
+  if (error) throw error;
+  const { data } = supabaseAdmin.storage.from('chapter-images').getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
+async function searchWikimediaImage(query) {
+  const url =
+    'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=1' +
+    '&gsrsearch=' + encodeURIComponent(`${query} filetype:bitmap`) +
+    '&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=800&format=json&origin=*';
+  const res = await fetch(url, { headers: { 'User-Agent': 'cbse-app/1.0 (study notes generator)' } });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const pages = data?.query?.pages;
+  if (!pages) return null;
+  const page = Object.values(pages)[0];
+  const info = page?.imageinfo?.[0];
+  if (!info) return null;
+  return {
+    imageUrl: info.thumburl || info.url,
+    attribution: 'Image: Wikimedia Commons',
+  };
+}
+
+// Walks the flat notes.blocks array and turns each "image" block's "page" or
+// "search_query" hint into a real, permanently-hosted imageUrl. Blocks that
+// can't be resolved to a real image are dropped rather than left broken.
+async function resolveImageBlocks(notes, pageImagesByNumber) {
+  if (!notes?.blocks?.length) return;
+  const resolved = [];
+  for (const block of notes.blocks) {
+    if (block.type !== 'image') {
+      resolved.push(block);
+      continue;
+    }
+    try {
+      if (block.page && pageImagesByNumber.has(Number(block.page))) {
+        const src = pageImagesByNumber.get(Number(block.page));
+        const imageUrl = await uploadPageImageToStorage(src.dataBase64, src.mimeType, block.page);
+        if (imageUrl) {
+          resolved.push({ type: 'image', caption: block.caption || '', imageUrl });
+          continue;
+        }
+      }
+      if (block.search_query) {
+        const found = await searchWikimediaImage(block.search_query);
+        if (found) {
+          resolved.push({
+            type: 'image',
+            caption: block.caption || '',
+            imageUrl: found.imageUrl,
+            attribution: found.attribution,
+          });
+          continue;
+        }
+      }
+      // Couldn't resolve this one — drop it rather than showing a broken image.
+    } catch {
+      // Image resolution is best-effort; never let it fail the whole chapter.
+    }
+  }
+  notes.blocks = resolved;
 }
 
 export async function POST(request) {
@@ -115,14 +243,28 @@ export async function POST(request) {
     );
   }
 
-  const { mode, grade, subject, chapter, topic, sourceText } = await request.json();
+  const { mode, grade, subject, chapter, topic, sourceText, contentType, pageImages } = await request.json();
 
-  const userPrompt =
+  const userPromptIntro =
     mode === 'source'
       ? `Grade: ${grade}, Subject: ${subject}, Chapter: ${chapter || '(untitled)'}.\n\nHere is source text to base the notes and questions on:\n\n${sourceText}`
       : `Grade: ${grade}, Subject: ${subject}, Chapter: ${chapter || topic}.\n\nGenerate CBSE-aligned study material for the topic: "${topic}".`;
 
-  const systemPrompt = getSystemPrompt(subject);
+  const systemPrompt = getSystemPrompt(subject, contentType);
+
+  // Build the page-photo parts (if any were sent) and an index for later
+  // re-uploading whichever pages the model actually picks.
+  const usablePageImages = Array.isArray(pageImages) ? pageImages.slice(0, MAX_PAGE_IMAGES) : [];
+  const pageImagesByNumber = new Map();
+  const imageParts = [];
+  for (const img of usablePageImages) {
+    if (!img?.dataBase64 || !img?.page) continue;
+    pageImagesByNumber.set(Number(img.page), img);
+    imageParts.push({ text: `Page ${img.page}:` });
+    imageParts.push({ inlineData: { mimeType: img.mimeType || 'image/jpeg', data: img.dataBase64 } });
+  }
+
+  const parts = [{ text: userPromptIntro }, ...imageParts];
 
   try {
     const response = await fetch(
@@ -134,11 +276,11 @@ export async function POST(request) {
           'x-goog-api-key': apiKey,
         },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          contents: [{ role: 'user', parts }],
           systemInstruction: { parts: [{ text: systemPrompt }] },
           generationConfig: {
             responseMimeType: 'application/json',
-            maxOutputTokens: 24000,
+            maxOutputTokens: 32768,
           },
         }),
       }
@@ -152,6 +294,8 @@ export async function POST(request) {
     const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('\n') || '';
     const cleaned = text.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(cleaned);
+
+    await resolveImageBlocks(parsed.notes, pageImagesByNumber);
 
     return NextResponse.json(parsed);
   } catch (err) {

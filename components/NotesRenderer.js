@@ -36,6 +36,21 @@ function Block({ block }) {
         </div>
       );
 
+    case 'image':
+      return block.imageUrl ? (
+        <figure className="notes-image">
+          <img src={block.imageUrl} alt={block.caption || ''} loading="lazy" />
+          {(block.caption || block.attribution) && (
+            <figcaption>
+              {block.caption}
+              {block.attribution && (
+                <span className="notes-image-attribution"> — {block.attribution}</span>
+              )}
+            </figcaption>
+          )}
+        </figure>
+      ) : null;
+
     case 'timeline':
       return (
         <div className="notes-timeline">
