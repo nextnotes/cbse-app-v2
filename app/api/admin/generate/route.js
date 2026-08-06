@@ -33,7 +33,8 @@ STUDENT-FRIENDLY LANGUAGE — apply throughout every block's text:
 - Write for the stated grade level — short sentences, everyday words.
 - Any technical term must be defined in plain language the first time it appears.
 - Friendly, encouraging tone, like a favorite teacher explaining it one-on-one, not a dry textbook.
-- Include at least one simple, relatable real-life example or analogy per major concept.`;
+- Include at least one simple, relatable real-life example or analogy per major concept.
+- PLAIN TEXT ONLY — never include HTML tags (no <b>, <i>, <br>, <ul>, <li>, etc.) or Markdown formatting (no **bold**, *italic*, # headings, - bullets) inside any text field, anywhere, in any block. The app's own styling handles bold/emphasis/spacing — raw tags or Markdown symbols will show up as literal ugly text on the page. For a "label: explanation" style list item, just write it as plain text with a colon, e.g. "Eastern Ganga Kingdom: repelled Sultanate invasions..." — no markup around the label.`;
 
 // Shared instructions for the "image" block. Photos of the actual source PDF pages
 // are sent to you (labelled "Page 1", "Page 2", ...) whenever they're available —
@@ -41,9 +42,9 @@ STUDENT-FRIENDLY LANGUAGE — apply throughout every block's text:
 // illustration, never for a page that is plain body text.
 const IMAGE_BLOCK_RULES = `
 IMAGE BLOCKS — "image" ({caption, page?, search_query?}):
-- If one of the page photos you were shown clearly contains a useful diagram, map, chart, or illustration (NOT just paragraphs of text), add an "image" block right after the text it relates to, with "page" set to that page's number (the integer from the "Page N" label) and a short plain-language "caption".
-- If a genuinely useful diagram/map/photo would help here but none of the provided pages show it clearly (e.g. no page images were provided at all, or the chapter needs a well-known reference image like a labelled map or a standard diagram), use "search_query" instead of "page": a short, specific, real-world search phrase (2-6 words) that would find that exact image (e.g. "political map of India", "human digestive system diagram", "water cycle diagram"). Do not set both "page" and "search_query" on the same block.
-- Never invent a page number that wasn't shown to you. If you're not looking at any page photos and can't think of a genuinely useful search_query, skip the image block entirely rather than guessing.
+- STRONG PREFERENCE FOR "page": if you were shown ANY page photos at all, you must actively check every one of them for a map/diagram/figure before ever using "search_query". If the map/diagram this section needs appears on ANY of the shown pages — even if it's small, mid-page, or not the main subject of that page — use "page" with that exact page number. Only fall back to "search_query" if you were shown zero page photos, or you have checked every single page photo you were given and none of them contain what's needed here. Do not default to "search_query" out of convenience when a page photo actually has it — the page photo is always the more accurate, exact image and must win.
+- If using "search_query" (no matching page photo available): use a short, specific, well-known search phrase (2-6 words) for a REAL, commonly-photographed/illustrated subject (e.g. "Taj Mahal", "human digestive system diagram", "political map of India today") — something that plausibly exists as a real photo/diagram online. Do NOT use search_query for a custom, textbook-specific illustration (e.g. a hand-drawn map showing one specific dynasty's territory with invented labels, or a diagram unique to this book) — that kind of image will not exist on the open web, and forcing a search for it just returns an unrelated substitute image, which is worse than no image at all. If what's needed is that specific to this source and wasn't shown to you as a page photo, skip the image block entirely rather than searching for it.
+- Never invent a page number that wasn't shown to you. If you're not looking at any page photos and can't think of a genuinely findable search_query, skip the image block entirely rather than guessing.
 - Don't force it — only add an image block where a real textbook would actually put a figure.`;
 
 const MATH_PROMPT = `You are a CBSE Math curriculum content writer for Indian school students (Std 6-10).
@@ -178,7 +179,7 @@ async function uploadPageImageToStorage(base64Data, mimeType, pageNumber) {
 
 async function searchWikimediaImage(query) {
   const url =
-    'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=1' +
+    'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=8' +
     '&gsrsearch=' + encodeURIComponent(`${query} filetype:bitmap`) +
     '&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=800&format=json&origin=*';
   const res = await fetch(url, { headers: { 'User-Agent': 'cbse-app/1.0 (study notes generator)' } });
@@ -186,13 +187,37 @@ async function searchWikimediaImage(query) {
   const data = await res.json();
   const pages = data?.query?.pages;
   if (!pages) return null;
-  const page = Object.values(pages)[0];
-  const info = page?.imageinfo?.[0];
-  if (!info) return null;
-  return {
-    imageUrl: info.thumburl || info.url,
-    attribution: 'Image: Wikimedia Commons',
-  };
+
+  // Relevance guard: Wikimedia's search will always return *something*, even for
+  // a query nothing real matches — and a confidently-wrong substitute image is
+  // worse than no image. Only accept a result if a meaningful chunk of the query
+  // words actually show up in that file's title, so we'd rather show nothing
+  // than show an unrelated picture.
+  const stopWords = new Set(['of', 'the', 'a', 'an', 'in', 'and', 'to', 'diagram', 'map', 'photo', 'picture', 'image']);
+  const queryWords = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stopWords.has(w));
+
+  const candidates = Object.values(pages)
+    .filter((p) => p?.imageinfo?.[0])
+    .map((p) => ({ page: p, title: (p.title || '').toLowerCase() }));
+
+  for (const { page, title } of candidates) {
+    const matchCount = queryWords.filter((w) => title.includes(w)).length;
+    // Require at least half the meaningful query words (min 1) to appear in the
+    // filename/title before trusting it as a real match.
+    if (queryWords.length === 0 || matchCount >= Math.max(1, Math.ceil(queryWords.length / 2))) {
+      const info = page.imageinfo[0];
+      return {
+        imageUrl: info.thumburl || info.url,
+        attribution: 'Image: Wikimedia Commons',
+      };
+    }
+  }
+  // Nothing was a good enough match — better to skip the image than show a
+  // random unrelated one.
+  return null;
 }
 
 // Walks the flat notes.blocks array and turns each "image" block's "page" or
@@ -233,6 +258,27 @@ async function resolveImageBlocks(notes, pageImagesByNumber) {
     }
   }
   notes.blocks = resolved;
+}
+
+// Defense in depth: even with the plain-text instruction above, models don't
+// always comply. Strip any HTML tags that slip into generated text fields so
+// they never show up as literal "<b>...</b>" on the page — this keeps the
+// text content, just removes the tag characters around it.
+function stripHtmlTags(value) {
+  if (typeof value === 'string') {
+    return value.replace(/<\/?[a-z][a-z0-9]*\b[^<>]*>/gi, '');
+  }
+  if (Array.isArray(value)) {
+    return value.map(stripHtmlTags);
+  }
+  if (value && typeof value === 'object') {
+    const cleaned = {};
+    for (const key of Object.keys(value)) {
+      cleaned[key] = stripHtmlTags(value[key]);
+    }
+    return cleaned;
+  }
+  return value;
 }
 
 export async function POST(request) {
@@ -294,7 +340,8 @@ export async function POST(request) {
 
     const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('\n') || '';
     const cleaned = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
+    let parsed = JSON.parse(cleaned);
+    parsed = stripHtmlTags(parsed);
 
     await resolveImageBlocks(parsed.notes, pageImagesByNumber);
 
