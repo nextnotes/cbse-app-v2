@@ -123,6 +123,16 @@ function Block({ block }) {
         </div>
       );
 
+    case 'quick_facts':
+      return (
+        <div className="notes-quickfacts">
+          <div className="notes-quickfacts-title">📌 Quick Facts — One-Line Summary</div>
+          <ul style={{ margin: 0, paddingLeft: 20 }}>
+            {block.items?.map((item, i) => <li key={i}>{item}</li>)}
+          </ul>
+        </div>
+      );
+
     case 'recap':
       return (
         <div className="notes-recap">

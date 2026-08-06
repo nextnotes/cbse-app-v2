@@ -54,11 +54,11 @@ NOTES FORMAT — Math needs worked examples and formulas, not history-style time
 - "formula" ({title, expression, note?}) — isolate every important formula in its own block so it's easy to spot and revise. expression should be plain-text math notation (e.g. "Area = pi x r^2"), not LaTeX.
 - "worked_example" ({problem, steps: [string,...], answer}) — at least 2-4 of these per chapter, each a fully solved problem showing every step, not just the final answer.
 - "callout" ({title, text}) — use for common mistakes students make, or quick tips/shortcuts.
-- "table" — for comparing methods, formulas, or properties (e.g. types of triangles and their properties).
-- "list" — for straightforward bullet points, like properties or steps of a method.
+- "table" ({columns: [string,...], rows: [[string,...],...]}) — for comparing methods, formulas, or properties (e.g. types of triangles and their properties).
+- "list" ({items: [string,...]}) — for straightforward bullet points, like properties or steps of a method.
 - "image" — use for geometric figures/diagrams a real textbook would draw (a labelled triangle, a graph, a solid shape, a number line). See IMAGE BLOCKS rules below. 1-3 per chapter where genuinely useful.
 - "glossary" — one block near the end with 5-8 key terms (e.g. "coefficient", "variable") and plain definitions.
-- ALWAYS end with a "recap" block: 4-6 short bullet points summarizing the whole chapter's key formulas/methods.
+- ALWAYS end with a "recap" block ({items: [string,...]}): 4-6 short bullet points summarizing the whole chapter's key formulas/methods.
 Do NOT use a "timeline" block — it doesn't fit Math content.
 ${IMAGE_BLOCK_RULES}
 ${SHARED_LANGUAGE_RULES}
@@ -78,10 +78,10 @@ NOTES FORMAT — language subjects need vocabulary, grammar, and comprehension f
 - "heading" ({text}) and "paragraph" ({text}) — summarize the chapter/poem's content, theme, and message in simple words.
 - "callout" ({title, text}) — use to explain literary devices (simile, metaphor, alliteration, etc.), the poet/author's background, or a key message — 1-3 per chapter.
 - "glossary" ({items: [{term, definition}]}) — this is IMPORTANT for language subjects: include a solid vocabulary block, 12-20 difficult/new words from the text with simple meanings (this is word-meanings, not just technical jargon). Do not undershoot this — vocabulary is one of the main things students need from these notes.
-- "table" — REQUIRED whenever the text has any grammar angle at all (verb tenses, parts of speech, sentence patterns used in the chapter, conjugation, spelling rules) — a grammar rules/examples table. If the chapter genuinely has zero grammar content, you may skip this, but check carefully first.
-- "list" — for straightforward points like a character's traits, or steps in a grammar rule.
+- "table" ({columns: [string,...], rows: [[string,...],...]}) — REQUIRED whenever the text has any grammar angle at all (verb tenses, parts of speech, sentence patterns used in the chapter, conjugation, spelling rules) — a grammar rules/examples table. If the chapter genuinely has zero grammar content, you may skip this, but check carefully first.
+- "list" ({items: [string,...]}) — for straightforward points like a character's traits, or steps in a grammar rule.
 - "image" — ONLY if a provided page photo shows a real illustration belonging to the story/poem. Language chapters rarely need this — skip unless there's a genuine illustration on a shown page.
-- ALWAYS end with a "recap" block: 4-6 short bullet points summarizing the chapter/poem's key ideas.
+- ALWAYS end with a "recap" block ({items: [string,...]}): 4-6 short bullet points summarizing the chapter/poem's key ideas.
 Do NOT use "timeline", "formula", or "worked_example" blocks — they don't fit language content.
 ${IMAGE_BLOCK_RULES}
 ${SHARED_LANGUAGE_RULES}
@@ -103,11 +103,11 @@ Given a topic or source text, ${JSON_SHAPE}
 
 NOTES FORMAT — this is a grammar/vocabulary reference, built almost entirely around rules, patterns and word-building, not story analysis. Allowed block types:
 - "heading" ({text}) and "paragraph" ({text}) — explain the rule itself in plain words: what it is, when to use it, why it matters.
-- "table" — the MAIN block type here: rule patterns, tense charts, conjugation tables, before/after examples (e.g. active vs passive), word-formation patterns. Include at least 2-3 tables.
-- "list" — for exceptions to the rule, common mistakes, or step-by-step "how to form it" points.
+- "table" ({columns: [string,...], rows: [[string,...],...]}) — the MAIN block type here: rule patterns, tense charts, conjugation tables, before/after examples (e.g. active vs passive), word-formation patterns. Include at least 2-3 tables.
+- "list" ({items: [string,...]}) — for exceptions to the rule, common mistakes, or step-by-step "how to form it" points.
 - "callout" ({title, text}) — 2-4 of these for tricky exceptions or easily-confused cases.
 - "glossary" ({items: [{term, definition}]}) — 12-20 vocabulary words relevant to the topic (or, for pure grammar topics, key grammar terms like "auxiliary verb", "subject-verb agreement") with simple meanings and one example sentence each folded into the definition.
-- ALWAYS end with a "recap" block: 4-6 short bullet points summarizing the rule.
+- ALWAYS end with a "recap" block ({items: [string,...]}): 4-6 short bullet points summarizing the rule.
 Do NOT use "timeline", "formula", "worked_example", or "image" blocks — they don't fit this topic.
 ${SHARED_LANGUAGE_RULES}
 
@@ -125,12 +125,13 @@ Given a topic or source text, ${JSON_SHAPE}
 NOTES FORMAT — build "blocks" like a polished revision-notes document, choosing whichever block types genuinely fit the topic:
 - Start with 1-2 "heading" + "paragraph" blocks giving an overview.
 - Use "callout" blocks to explain any tricky term or highlight one especially interesting fact — don't overuse, 1-3 per chapter is plenty.
-- Use a "timeline" block ONLY for history/social-science topics with a clear chronological sequence of events/dates.
-- Use a "table" block for comparisons, classifications, or listing key figures/items with their features (e.g. rulers and their achievements, types of resources, parts of a cell).
-- Use "list" blocks for straightforward bullet points that don't need a table.
+- Use a "timeline" block ({items: [{date, text}, ...]}) for history/social-science topics with a chronological sequence of events/dates. For SST/History chapters specifically, this is IMPORTANT and should almost always be included: pull out every date-worthy event in the chapter (not just 4-6 — include all of them, this could be 8-15+ for a dense chapter) as one-line "date: what happened" entries, in chronological order. This is one of the most useful revision tools for history, so don't skimp on it.
+- Use a "table" block ({columns: [string,...], rows: [[string,...],...]}) for comparisons, classifications, or listing key figures/items with their features (e.g. rulers and their achievements, types of resources, parts of a cell).
+- Use "list" blocks ({items: [string,...]}) for straightforward bullet points that don't need a table.
 - Use "image" blocks for maps (SST — political/physical/historical maps, movement of trade routes, locations), diagrams (Science — cycles, body systems, apparatus, processes), and illustrations (Computer — device/network diagrams). This subject group benefits the most from images — actively look for 2-5 good places to add one per chapter, not just as an afterthought. See IMAGE BLOCKS rules below.
 - Include exactly one "glossary" block near the end with 5-10 key terms and short, plain definitions.
-- ALWAYS end with exactly one "recap" block: 4-6 short bullet points summarizing the whole chapter.
+- Include exactly one "quick_facts" block ({items: [string,...]}) near the end, right before the recap: a comprehensive set of one-line factual statements covering the ENTIRE chapter, not just the highlights. This is different from "recap" (which is just 4-6 top takeaways) — quick_facts should be exhaustive: aim for 15-30 short, standalone, revision-ready statements (one fact per line, no sub-points), pulled from every section of the chapter — definitions, names, numbers/dates, causes/effects, examples, everything worth knowing, in the order they appear in the chapter. Each line should make sense on its own without needing the surrounding text.
+- ALWAYS end with exactly one "recap" block ({items: [string,...]}): 4-6 short bullet points summarizing the whole chapter.
 ${IMAGE_BLOCK_RULES}
 ${SHARED_LANGUAGE_RULES}
 

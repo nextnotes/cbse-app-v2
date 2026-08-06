@@ -23,7 +23,7 @@ html, body {
   background: linear-gradient(180deg, #eef3ff 0%, #f6f8fb 250px, #f6f8fb 100%);
   background-attachment: fixed;
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif, 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Symbol';
 }
 
 a {
@@ -298,6 +298,22 @@ label {
   font-weight: 700;
   color: var(--primary-dark);
   margin-bottom: 2px;
+}
+.notes-quickfacts {
+  background: #f3f0ff;
+  border-left: 4px solid #8b6ee0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-top: 20px;
+  font-size: 14px;
+}
+.notes-quickfacts-title {
+  font-weight: 700;
+  color: #5b3fa8;
+  margin-bottom: 6px;
+}
+.notes-quickfacts li {
+  margin-bottom: 4px;
 }
 .notes-recap {
   background: #eafaf6;
