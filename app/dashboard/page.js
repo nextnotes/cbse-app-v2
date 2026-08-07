@@ -179,8 +179,7 @@ export default function Dashboard() {
             ))}
           </div>
 
-          <div className="card watermark-container">
-            <div className="watermark-overlay" aria-hidden="true" />
+          <div className="card">
             {!selectedChapter ? (
               <p style={{ color: '#6b7280' }}>Select a chapter to begin.</p>
             ) : (
@@ -200,60 +199,69 @@ export default function Dashboard() {
                   ))}
                 </div>
 
-                {view === 'notes' && (
-                  <div>
-                    {selectedChapter.notes ? (
-                      <NotesRenderer notes={selectedChapter.notes} />
-                    ) : (
-                      !signedPdfUrl && <p style={{ color: '#6b7280' }}>No notes yet.</p>
-                    )}
-                    {signedPdfUrl && (
-                      <div style={{ marginTop: 18 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: '#6b7280', marginBottom: 8 }}>
-                          📄 NOTES
-                        </div>
-                        <PdfPageViewer url={signedPdfUrl} />
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Watermark overlay applies only to protected study content
+                    (Notes, Practice Set, Mind Map, 3D Model) — not Video. */}
+                <div className={['notes', 'practice', 'mindmap', '3d'].includes(view) ? 'watermark-container' : undefined}>
+                  {['notes', 'practice', 'mindmap', '3d'].includes(view) && (
+                    <div className="watermark-overlay" aria-hidden="true" />
+                  )}
 
-                {view === 'practice' && (
-                  <PracticeSet
-                    questions={selectedChapter.practice_questions}
-                    shortAnswerPdfUrl={signedShortAnswerPdfUrl}
-                    longAnswerPdfUrl={signedLongAnswerPdfUrl}
-                  />
-                )}
-
-                {view === 'mindmap' && <MindMap data={selectedChapter.mindmap} />}
-
-                {view === '3d' && (
-                  selectedChapter.model_3d_links?.length > 0 ? (
+                  {view === 'notes' && (
                     <div>
-                      {selectedChapter.model_3d_links.length > 1 && (
-                        <div className="tabs">
-                          {selectedChapter.model_3d_links.map((m, i) => (
-                            <div
-                              key={i}
-                              className={`tab ${selectedModelIndex === i ? 'active' : ''}`}
-                              onClick={() => setSelectedModelIndex(i)}
-                            >
-                              {m.title || `Model ${i + 1}`}
-                            </div>
-                          ))}
+                      {selectedChapter.notes ? (
+                        <NotesRenderer notes={selectedChapter.notes} />
+                      ) : (
+                        !signedPdfUrl && <p style={{ color: '#6b7280' }}>No notes yet.</p>
+                      )}
+                      {signedPdfUrl && (
+                        <div style={{ marginTop: 18 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: '#6b7280', marginBottom: 8 }}>
+                            📄 NOTES
+                          </div>
+                          <PdfPageViewer url={signedPdfUrl} />
                         </div>
                       )}
-                      {(() => {
-                        const model = selectedChapter.model_3d_links[selectedModelIndex] || selectedChapter.model_3d_links[0];
-                        const src = model.path ? model3dSignedUrls[model.path] : model.url;
-                        return <Model3DViewer src={src} alt={model.title || selectedChapter.chapter} />;
-                      })()}
                     </div>
-                  ) : (
-                    <Model3DViewer src={signed3dUrl || selectedChapter.model_3d_url} alt={selectedChapter.chapter} />
-                  )
-                )}
+                  )}
+
+                  {view === 'practice' && (
+                    <PracticeSet
+                      questions={selectedChapter.practice_questions}
+                      shortAnswerPdfUrl={signedShortAnswerPdfUrl}
+                      longAnswerPdfUrl={signedLongAnswerPdfUrl}
+                      subject={subject}
+                    />
+                  )}
+
+                  {view === 'mindmap' && <MindMap data={selectedChapter.mindmap} />}
+
+                  {view === '3d' && (
+                    selectedChapter.model_3d_links?.length > 0 ? (
+                      <div>
+                        {selectedChapter.model_3d_links.length > 1 && (
+                          <div className="tabs">
+                            {selectedChapter.model_3d_links.map((m, i) => (
+                              <div
+                                key={i}
+                                className={`tab ${selectedModelIndex === i ? 'active' : ''}`}
+                                onClick={() => setSelectedModelIndex(i)}
+                              >
+                                {m.title || `Model ${i + 1}`}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(() => {
+                          const model = selectedChapter.model_3d_links[selectedModelIndex] || selectedChapter.model_3d_links[0];
+                          const src = model.path ? model3dSignedUrls[model.path] : model.url;
+                          return <Model3DViewer src={src} alt={model.title || selectedChapter.chapter} />;
+                        })()}
+                      </div>
+                    ) : (
+                      <Model3DViewer src={signed3dUrl || selectedChapter.model_3d_url} alt={selectedChapter.chapter} />
+                    )
+                  )}
+                </div>
 
                 {view === 'video' && (
                   <div>
@@ -290,7 +298,23 @@ export default function Dashboard() {
   );
 }
 
-function PracticeSet({ questions, shortAnswerPdfUrl, longAnswerPdfUrl }) {
+// Subjects whose answers read as connected prose (literature/language
+// subjects) rather than fact lists — these get paragraph-style answers
+// instead of bullet points.
+const PARAGRAPH_SUBJECTS = ['Odia', 'English', 'Hindi', 'Sanskrit'];
+
+// Math answers are step-by-step workings — each line (explanation sentence
+// or calculation step) should stand on its own line, left-aligned, with no
+// bullet marker — matching how worked solutions are conventionally shown.
+const STEP_SUBJECTS = ['Math'];
+
+function answerModeFor(subject) {
+  if (PARAGRAPH_SUBJECTS.includes(subject)) return 'paragraph';
+  if (STEP_SUBJECTS.includes(subject)) return 'steps';
+  return 'bullet';
+}
+
+function PracticeSet({ questions, shortAnswerPdfUrl, longAnswerPdfUrl, subject }) {
   // If this ever arrives as a JSON string instead of an already-parsed
   // object/array (e.g. a double-encoding quirk from the AI response), parse
   // it first so it renders normally instead of silently showing "no questions".
@@ -332,9 +356,9 @@ function PracticeSet({ questions, shortAnswerPdfUrl, longAnswerPdfUrl }) {
       </div>
 
       {activeTab === 'mcq' && <MCQSection questions={sections.mcq} />}
-      {activeTab === 'one_liners' && <QASection questions={sections.one_liners} compact accent="#5b7fdb" />}
-      {activeTab === 'short_answer' && <QASection questions={sections.short_answer} pdfUrl={shortAnswerPdfUrl} accent="#35b7a3" />}
-      {activeTab === 'long_answer' && <QASection questions={sections.long_answer} pdfUrl={longAnswerPdfUrl} accent="#ff8a3d" />}
+      {activeTab === 'one_liners' && <QASection questions={sections.one_liners} compact accent="#5b7fdb" mode={answerModeFor(subject)} />}
+      {activeTab === 'short_answer' && <QASection questions={sections.short_answer} pdfUrl={shortAnswerPdfUrl} accent="#35b7a3" mode={answerModeFor(subject)} />}
+      {activeTab === 'long_answer' && <QASection questions={sections.long_answer} pdfUrl={longAnswerPdfUrl} accent="#ff8a3d" mode={answerModeFor(subject)} />}
     </div>
   );
 }
@@ -475,12 +499,32 @@ function MCQSection({ questions }) {
 // Splits a multi-line answer into bullet points when it looks like a list
 // (multiple lines, or "- " / "1. " style markers); falls back to a plain
 // paragraph for single-line answers.
-function AnswerContent({ text }) {
+function AnswerContent({ text, mode = 'bullet' }) {
   if (!text) return <span>(no answer provided)</span>;
   const lines = text
     .split('\n')
     .map((l) => l.replace(/^[-•]\s*/, '').replace(/^\d+\.\s*/, '').trim())
     .filter(Boolean);
+
+  // Literature/language subjects (Odia, English, Hindi, Sanskrit) read as
+  // connected prose, so join the lines into a single paragraph instead of
+  // bulleting them.
+  if (mode === 'paragraph') {
+    return <p style={{ margin: 0 }}>{lines.join(' ')}</p>;
+  }
+
+  // Math answers are worked solutions: each explanation sentence or
+  // calculation step sits on its own line, left-aligned, with no bullet —
+  // matching standard step-by-step solution formatting.
+  if (mode === 'steps') {
+    return (
+      <div>
+        {lines.map((line, i) => (
+          <div key={i} style={{ marginBottom: 6 }}>{line}</div>
+        ))}
+      </div>
+    );
+  }
 
   if (lines.length > 1) {
     return (
@@ -492,7 +536,7 @@ function AnswerContent({ text }) {
   return <span>{text}</span>;
 }
 
-function QASection({ questions, compact, pdfUrl, accent = 'var(--primary)' }) {
+function QASection({ questions, compact, pdfUrl, accent = 'var(--primary)', mode = 'bullet' }) {
   const [revealed, setRevealed] = useState({});
 
   return (
@@ -538,7 +582,7 @@ function QASection({ questions, compact, pdfUrl, accent = 'var(--primary)' }) {
                     lineHeight: 1.6,
                   }}
                 >
-                  <AnswerContent text={q.answer} />
+                  <AnswerContent text={q.answer} mode={mode} />
                 </div>
               ) : (
                 <button
