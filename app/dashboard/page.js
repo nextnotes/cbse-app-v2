@@ -308,7 +308,11 @@ const PARAGRAPH_SUBJECTS = ['Odia', 'English', 'Hindi', 'Sanskrit'];
 // bullet marker — matching how worked solutions are conventionally shown.
 const STEP_SUBJECTS = ['Math'];
 
-function answerModeFor(subject) {
+function answerModeFor(subject, tabKey) {
+  // Odia long-answer questions follow the BSE Odisha board-exam structure
+  // (ଉପକ୍ରମ/ପ୍ରସଙ୍ଗ/ବ୍ୟାଖ୍ୟା or ଭୂମିକା/ମୂଳ ବିଷୟବସ୍ତୁ/ଉପସଂହାର) — labelled
+  // sections, not a single merged paragraph and not bullets.
+  if (subject === 'Odia' && tabKey === 'long_answer') return 'odia_sections';
   if (PARAGRAPH_SUBJECTS.includes(subject)) return 'paragraph';
   if (STEP_SUBJECTS.includes(subject)) return 'steps';
   return 'bullet';
@@ -356,9 +360,9 @@ function PracticeSet({ questions, shortAnswerPdfUrl, longAnswerPdfUrl, subject }
       </div>
 
       {activeTab === 'mcq' && <MCQSection questions={sections.mcq} />}
-      {activeTab === 'one_liners' && <QASection questions={sections.one_liners} compact accent="#5b7fdb" mode={answerModeFor(subject)} />}
-      {activeTab === 'short_answer' && <QASection questions={sections.short_answer} pdfUrl={shortAnswerPdfUrl} accent="#35b7a3" mode={answerModeFor(subject)} />}
-      {activeTab === 'long_answer' && <QASection questions={sections.long_answer} pdfUrl={longAnswerPdfUrl} accent="#ff8a3d" mode={answerModeFor(subject)} />}
+      {activeTab === 'one_liners' && <QASection questions={sections.one_liners} compact accent="#5b7fdb" mode={answerModeFor(subject, 'one_liners')} />}
+      {activeTab === 'short_answer' && <QASection questions={sections.short_answer} pdfUrl={shortAnswerPdfUrl} accent="#35b7a3" mode={answerModeFor(subject, 'short_answer')} />}
+      {activeTab === 'long_answer' && <QASection questions={sections.long_answer} pdfUrl={longAnswerPdfUrl} accent="#ff8a3d" mode={answerModeFor(subject, 'long_answer')} />}
     </div>
   );
 }
@@ -501,6 +505,37 @@ function MCQSection({ questions }) {
 // paragraph for single-line answers.
 function AnswerContent({ text, mode = 'bullet' }) {
   if (!text) return <span>(no answer provided)</span>;
+
+  // Odia long-answer: labelled sections (ଉପକ୍ରମ/ପ୍ରସଙ୍ଗ/ବ୍ୟାଖ୍ୟା or
+  // ଭୂମିକା/ମୂଳ ବିଷୟବସ୍ତୁ/ଉପସଂହାର), each its own paragraph with the label
+  // bolded — not merged into one blob, not bulleted. Operates on the raw
+  // text (paragraph breaks matter here), before the generic line-flattening
+  // below would collapse them.
+  if (mode === 'odia_sections') {
+    let paras = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    if (paras.length <= 1) {
+      paras = text.split('\n').map((p) => p.trim()).filter(Boolean);
+    }
+    return (
+      <div>
+        {paras.map((p, i) => {
+          const m = p.match(/^([^:：\n]{2,24}[:：])\s*([\s\S]*)$/);
+          return (
+            <p key={i} style={{ margin: '0 0 12px 0', lineHeight: 1.8 }}>
+              {m ? (
+                <>
+                  <strong>{m[1]}</strong> {m[2]}
+                </>
+              ) : (
+                p
+              )}
+            </p>
+          );
+        })}
+      </div>
+    );
+  }
+
   const lines = text
     .split('\n')
     .map((l) => l.replace(/^[-•]\s*/, '').replace(/^\d+\.\s*/, '').trim())

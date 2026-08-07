@@ -96,6 +96,31 @@ PRACTICE QUESTIONS — language subjects need comprehension and expression pract
 
 Cover the full breadth of the text so questions don't repeat the same sub-point. Also produce a mind map with 2 levels of depth covering the chapter's key ideas/characters/themes.`;
 
+// Odia specifically follows the BSE Odisha board-exam answer conventions for
+// long-answer questions, which are written in Odia script using named
+// structured sections rather than a bulleted list or free paragraph. This
+// overrides just the long-answer instruction from LANGUAGE_PROMPT above.
+const ODIA_LONG_ANSWER_RULES = `
+ODIA LONG-ANSWER FORMAT (overrides the generic "Long-answer" line above for this subject only): each long_answer item's "question" and "answer" must be written entirely in formal, standard literary Odia script (not English, not Romanized/transliterated Odia). For each question, decide which of these two BSE Odisha board-exam answer structures fits it, and format the "answer" accordingly as labelled paragraphs, each on its own line separated by "\\n\\n" (do not use bullets "- " for these):
+
+1. ସପ୍ରସଙ୍ଗ ସରଳାର୍ଥ (Contextual Explanation) — use when the question quotes or points to specific lines from a poem/epic and asks the student to explain them in context. Three labelled paragraphs, in this exact order, each starting with its Odia label followed by a colon:
+   - "ଉପକ୍ରମ: " — name the poem/chapter, its epic or literary origin if applicable, and a one-line note on the poet/author's background.
+   - "ପ୍ରସଙ୍ଗ: " — 1-2 sentences on what these particular lines are doing in the larger text.
+   - "ବ୍ୟାଖ୍ୟା: " — a deep, analytical, textbook-standard explanation of the lines' meaning.
+
+2. ଦୀର୍ଘ ଉତ୍ତରମୂଳକ ପ୍ରଶ୍ନ (Long Answer Question) — use for essay-style questions (theme, character analysis, chapter summary, "explain why..."). Three labelled paragraphs, in this exact order, each starting with its Odia label followed by a colon:
+   - "ଭୂମିକା: " — introduce the theme of the chapter/poem and set up the answer.
+   - "ମୂଳ ବିଷୟବସ୍ତୁ: " — the detailed answer body, covering every point a full-marks answer needs.
+   - "ଉପସଂହାର: " — a brief closing statement giving the moral/lesson/takeaway.
+
+WORD COUNT for the whole answer (all three sections combined):
+- Grade 9 and Grade 10: 150-200 words.
+- Grade 6, 7, and 8: 100-150 words.
+Use standard literary Odia vocabulary suitable for scoring full marks in a Matriculation-style exam — formal register, grammatically accurate, not conversational. This structured format applies ONLY to long_answer; one_liners and short_answer for Odia still follow the general language-subject instructions above (short_answer as a flowing paragraph in Odia, not bulleted).`;
+
+const ODIA_PROMPT = `${LANGUAGE_PROMPT}
+${ODIA_LONG_ANSWER_RULES}`;
+
 // Standalone grammar / vocabulary topic — NOT tied to a literature passage
 // (e.g. "Tenses", "Active-Passive Voice", "Word Building"). Used when the admin
 // flags a language-subject topic as a grammar/vocabulary topic instead of a
@@ -150,6 +175,7 @@ function getSystemPrompt(subject, contentType) {
   const isLanguage = ['english', 'odia', 'hindi', 'sanskrit'].includes(s);
   if (isLanguage && contentType === 'grammar') return GRAMMAR_PROMPT;
   if (s === 'math') return MATH_PROMPT;
+  if (s === 'odia') return ODIA_PROMPT;
   if (isLanguage) return LANGUAGE_PROMPT;
   return GENERAL_PROMPT; // SST, Science, Computer
 }

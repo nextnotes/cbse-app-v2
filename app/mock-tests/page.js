@@ -56,10 +56,10 @@ export default function MockTests() {
         const testIds = testsData.map((t) => t.id);
         const { data: attemptsData } = await supabase
           .from('mock_test_attempts')
-          .select('test_id, score, total, created_at')
+          .select('test_id, score, total, submitted_at')
           .eq('student_id', profileData.id)
           .in('test_id', testIds)
-          .order('created_at', { ascending: false });
+          .order('submitted_at', { ascending: false });
 
         const grouped = {};
         for (const a of attemptsData || []) {
