@@ -45,6 +45,23 @@ a {
   padding: 24px;
 }
 
+/* Content watermark — a faint, tiled "vidyasetu.space" over notes/practice
+   content, meant to discourage casual sharing of screenshots. It's not (and
+   can't be) a way to actually block screenshots — browsers give websites no
+   way to detect or prevent those — this just marks the content as ours.
+   pointer-events: none so it never blocks clicks/selection underneath. */
+.watermark-container {
+  position: relative;
+}
+.watermark-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='160'%3E%3Ctext x='10' y='90' font-family='sans-serif' font-size='18' fill='rgba(60,70,90,0.07)' transform='rotate(-28 160 80)'%3Evidyasetu.space%3C/text%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
 .btn {
   display: inline-block;
   background: var(--primary);

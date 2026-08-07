@@ -135,6 +135,12 @@ export default function Home() {
           <div style={{ fontSize: 12, marginTop: 4 }}>
             Free CBSE study notes, mock tests & practice for Std 6–10
           </div>
+          <div style={{ fontSize: 12, marginTop: 10, display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <a href="/about">About</a>
+            <a href="/contact">Contact</a>
+            <a href="/privacy-policy">Privacy Policy</a>
+            <a href="/terms">Terms &amp; Conditions</a>
+          </div>
         </div>
       </div>
     </div>

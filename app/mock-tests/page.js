@@ -4,11 +4,24 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
 
+// Titles look like "Ch 4: Timeline and Sources of History [Mock3]" or, for a
+// chapter with only one test, just "Ch 1 : Introduction of Computer" with no
+// bracketed suffix at all. This splits off that suffix so multiple mock
+// variants of the same chapter can be grouped and listed together.
+function parseTestTitle(title) {
+  const match = (title || '').match(/^(.*?)\s*[\[\(]\s*(mock\s*\d*)\s*[\]\)]\s*$/i);
+  if (match) {
+    return { chapter: match[1].trim(), variant: match[2].trim() };
+  }
+  return { chapter: (title || '').trim(), variant: null };
+}
+
 export default function MockTests() {
   const router = useRouter();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tests, setTests] = useState([]);
+  const [attemptsByTest, setAttemptsByTest] = useState({});
   const [selectedTest, setSelectedTest] = useState(null);
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
@@ -36,6 +49,30 @@ export default function MockTests() {
         .order('subject', { ascending: true })
         .order('created_at', { ascending: false });
       setTests(testsData || []);
+
+      // Pull this student's past attempts for these tests, so the list can show
+      // "you scored X last time" and offer a re-attempt instead of a fresh start.
+      if (testsData?.length) {
+        const testIds = testsData.map((t) => t.id);
+        const { data: attemptsData } = await supabase
+          .from('mock_test_attempts')
+          .select('test_id, score, total, created_at')
+          .eq('student_id', profileData.id)
+          .in('test_id', testIds)
+          .order('created_at', { ascending: false });
+
+        const grouped = {};
+        for (const a of attemptsData || []) {
+          if (!grouped[a.test_id]) {
+            // First one seen per test is the most recent, since we sorted desc.
+            grouped[a.test_id] = { latest: a, attemptCount: 1 };
+          } else {
+            grouped[a.test_id].attemptCount += 1;
+          }
+        }
+        setAttemptsByTest(grouped);
+      }
+
       setLoading(false);
     }
     init();
@@ -67,6 +104,16 @@ export default function MockTests() {
       total: questions.length,
     });
     setSaving(false);
+
+    // Update the local attempt record so the list (and this session) reflects
+    // the new score immediately if the student goes back and looks again.
+    setAttemptsByTest((prev) => ({
+      ...prev,
+      [selectedTest.id]: {
+        latest: { test_id: selectedTest.id, score: correct, total: questions.length },
+        attemptCount: (prev[selectedTest.id]?.attemptCount || 0) + 1,
+      },
+    }));
   }
 
   if (loading) return <div className="container">Loading...</div>;
@@ -93,22 +140,71 @@ export default function MockTests() {
                   groups[t.subject].push(t);
                   return groups;
                 }, {})
-              ).map(([subjectName, subjectTests]) => (
-                <div key={subjectName} style={{ marginBottom: 28 }}>
-                  <div className="badge" style={{ marginBottom: 10, fontSize: 13 }}>{subjectName}</div>
-                  <div className="grid cols-2">
-                    {subjectTests.map((t) => (
-                      <div key={t.id} className="card">
-                        <div style={{ fontWeight: 700, marginBottom: 4 }}>{t.title}</div>
-                        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
-                          {t.questions?.length || 0} questions
+              ).map(([subjectName, subjectTests]) => {
+                // Group this subject's tests by chapter (stripping any "[Mock N]"
+                // suffix from the title), so multiple mock variants of the same
+                // chapter list together instead of as separate flat cards.
+                const chapterGroups = subjectTests.reduce((groups, t) => {
+                  const { chapter, variant } = parseTestTitle(t.title);
+                  groups[chapter] = groups[chapter] || [];
+                  groups[chapter].push({ ...t, variant });
+                  return groups;
+                }, {});
+
+                return (
+                  <div key={subjectName} style={{ marginBottom: 28 }}>
+                    <div className="badge" style={{ marginBottom: 10, fontSize: 13 }}>{subjectName}</div>
+                    {Object.entries(chapterGroups).map(([chapterName, chapterTests]) => (
+                      <div key={chapterName} className="card" style={{ marginBottom: 14 }}>
+                        <div style={{ fontWeight: 700, marginBottom: 12 }}>{chapterName}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {chapterTests.map((t) => {
+                            const attempt = attemptsByTest[t.id];
+                            return (
+                              <div
+                                key={t.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 10,
+                                  padding: '10px 12px',
+                                  borderRadius: 10,
+                                  border: '1px solid #e5e9f0',
+                                }}
+                              >
+                                <div>
+                                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                                    {t.variant || 'Test'}
+                                    <span style={{ fontWeight: 400, color: '#6b7280', marginLeft: 8 }}>
+                                      {t.questions?.length || 0} questions
+                                    </span>
+                                  </div>
+                                  {attempt && (
+                                    <div style={{ fontSize: 13, color: '#4562b8', fontWeight: 600, marginTop: 4 }}>
+                                      Previous score: {attempt.latest.score} / {attempt.latest.total}
+                                      {attempt.attemptCount > 1 && (
+                                        <span style={{ fontWeight: 400, color: '#6b7280' }}>
+                                          {' '}
+                                          ({attempt.attemptCount} attempts)
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                <button className="btn" style={{ padding: '8px 16px' }} onClick={() => startTest(t)}>
+                                  {attempt ? '🔁 Re-attempt' : 'Start Test'}
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
-                        <button className="btn" onClick={() => startTest(t)}>Start Test</button>
                       </div>
                     ))}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         ) : (

@@ -179,7 +179,8 @@ export default function Dashboard() {
             ))}
           </div>
 
-          <div className="card">
+          <div className="card watermark-container">
+            <div className="watermark-overlay" aria-hidden="true" />
             {!selectedChapter ? (
               <p style={{ color: '#6b7280' }}>Select a chapter to begin.</p>
             ) : (

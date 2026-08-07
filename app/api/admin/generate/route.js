@@ -41,8 +41,9 @@ STUDENT-FRIENDLY LANGUAGE — apply throughout every block's text:
 // look at them. Only ever use an "image" block for a genuine diagram / map / figure /
 // illustration, never for a page that is plain body text.
 const IMAGE_BLOCK_RULES = `
-IMAGE BLOCKS — "image" ({caption, page?, search_query?}):
+IMAGE BLOCKS — "image" ({caption, page?, crop?, search_query?}):
 - STRONG PREFERENCE FOR "page": if you were shown ANY page photos at all, you must actively check every one of them for a map/diagram/figure before ever using "search_query". If the map/diagram this section needs appears on ANY of the shown pages — even if it's small, mid-page, or not the main subject of that page — use "page" with that exact page number. Only fall back to "search_query" if you were shown zero page photos, or you have checked every single page photo you were given and none of them contain what's needed here. Do not default to "search_query" out of convenience when a page photo actually has it — the page photo is always the more accurate, exact image and must win.
+- WHEN USING "page", ALSO INCLUDE "crop": most pages have a lot of body text around the actual figure — you must tell us exactly where the diagram/map/photo sits on the page so we can crop OUT the surrounding paragraphs and show just the figure. Set "crop" to {"x": number, "y": number, "width": number, "height": number}, all as fractions from 0 to 1 of the full page (x/y = top-left corner of the figure, width/height = how much of the page it spans). Look carefully at the page photo and estimate this as tightly as you reasonably can around just the figure (plus its own caption/labels if it has them) — err on the side of a slightly generous box rather than cutting off part of the figure, but do NOT include unrelated paragraphs of body text if you can avoid it. If the figure basically fills the page (e.g. a full-page map), it's fine to use something close to {"x":0,"y":0,"width":1,"height":1}. If you can't confidently estimate a tight box, you may omit "crop" and the full page will be used instead.
 - If using "search_query" (no matching page photo available): use a short, specific, well-known search phrase (2-6 words) for a REAL, commonly-photographed/illustrated subject (e.g. "Taj Mahal", "human digestive system diagram", "political map of India today") — something that plausibly exists as a real photo/diagram online. Do NOT use search_query for a custom, textbook-specific illustration (e.g. a hand-drawn map showing one specific dynasty's territory with invented labels, or a diagram unique to this book) — that kind of image will not exist on the open web, and forcing a search for it just returns an unrelated substitute image, which is worse than no image at all. If what's needed is that specific to this source and wasn't shown to you as a page photo, skip the image block entirely rather than searching for it.
 - Never invent a page number that wasn't shown to you. If you're not looking at any page photos and can't think of a genuinely findable search_query, skip the image block entirely rather than guessing.
 - Don't force it — only add an image block where a real textbook would actually put a figure.`;
@@ -165,10 +166,44 @@ function getSystemPrompt(subject, contentType) {
 // cutoff just fall back to "search_query" images instead of "page" images.
 const MAX_PAGE_IMAGES = 45;
 
-async function uploadPageImageToStorage(base64Data, mimeType, pageNumber) {
+async function uploadPageImageToStorage(base64Data, mimeType, pageNumber, crop) {
   const ext = mimeType === 'image/png' ? 'png' : 'jpg';
   const path = `pdf-page/${Date.now()}-p${pageNumber}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const buffer = Buffer.from(base64Data, 'base64');
+  let buffer = Buffer.from(base64Data, 'base64');
+
+  // Crop out just the figure if the model gave us a bounding box, instead of
+  // uploading the whole page (which drags in unrelated body text). Fractions
+  // are validated and clamped so a slightly-off box from the model can't
+  // crash the crop — worst case it falls back to the full page.
+  if (
+    crop &&
+    typeof crop === 'object' &&
+    [crop.x, crop.y, crop.width, crop.height].every((n) => typeof n === 'number' && isFinite(n))
+  ) {
+    try {
+      const sharp = (await import('sharp')).default;
+      const img = sharp(buffer);
+      const meta = await img.metadata();
+      if (meta.width && meta.height) {
+        const clamp01 = (n) => Math.min(1, Math.max(0, n));
+        const x = clamp01(crop.x);
+        const y = clamp01(crop.y);
+        const w = clamp01(crop.width);
+        const h = clamp01(crop.height);
+        const left = Math.round(x * meta.width);
+        const top = Math.round(y * meta.height);
+        const width = Math.max(1, Math.min(meta.width - left, Math.round(w * meta.width)));
+        const height = Math.max(1, Math.min(meta.height - top, Math.round(h * meta.height)));
+        if (width > 20 && height > 20) {
+          buffer = await sharp(buffer).extract({ left, top, width, height }).toBuffer();
+        }
+      }
+    } catch {
+      // Cropping is best-effort — if it fails for any reason, upload the
+      // full, uncropped page image rather than losing the figure entirely.
+    }
+  }
+
   const { error } = await supabaseAdmin.storage
     .from('chapter-images')
     .upload(path, buffer, { contentType: mimeType, upsert: true });
@@ -234,7 +269,7 @@ async function resolveImageBlocks(notes, pageImagesByNumber) {
     try {
       if (block.page && pageImagesByNumber.has(Number(block.page))) {
         const src = pageImagesByNumber.get(Number(block.page));
-        const imageUrl = await uploadPageImageToStorage(src.dataBase64, src.mimeType, block.page);
+        const imageUrl = await uploadPageImageToStorage(src.dataBase64, src.mimeType, block.page, block.crop);
         if (imageUrl) {
           resolved.push({ type: 'image', caption: block.caption || '', imageUrl });
           continue;
