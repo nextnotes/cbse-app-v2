@@ -23,7 +23,7 @@ html, body {
   background: linear-gradient(180deg, #eef3ff 0%, #f6f8fb 250px, #f6f8fb 100%);
   background-attachment: fixed;
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif, 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Symbol';
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Symbol', sans-serif;
 }
 
 a {
@@ -177,6 +177,8 @@ label {
   width: 0;
   height: 0;
   pointer-events: none;
+  z-index: 10; /* above .watermark-overlay (z-index: 5), so celebrations
+                  aren't hidden underneath the watermark on Notes/Practice */
 }
 .firecracker-particle {
   position: absolute;

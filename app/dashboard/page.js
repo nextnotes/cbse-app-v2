@@ -200,9 +200,9 @@ export default function Dashboard() {
                 </div>
 
                 {/* Watermark overlay applies only to protected study content
-                    (Notes, Practice Set, Mind Map, 3D Model) — not Video. */}
-                <div className={['notes', 'practice', 'mindmap', '3d'].includes(view) ? 'watermark-container' : undefined}>
-                  {['notes', 'practice', 'mindmap', '3d'].includes(view) && (
+                    (Notes, Practice Set, Mind Map) — not 3D Model or Video. */}
+                <div className={['notes', 'practice', 'mindmap'].includes(view) ? 'watermark-container' : undefined}>
+                  {['notes', 'practice', 'mindmap'].includes(view) && (
                     <div className="watermark-overlay" aria-hidden="true" />
                   )}
 
@@ -234,34 +234,34 @@ export default function Dashboard() {
                   )}
 
                   {view === 'mindmap' && <MindMap data={selectedChapter.mindmap} />}
-
-                  {view === '3d' && (
-                    selectedChapter.model_3d_links?.length > 0 ? (
-                      <div>
-                        {selectedChapter.model_3d_links.length > 1 && (
-                          <div className="tabs">
-                            {selectedChapter.model_3d_links.map((m, i) => (
-                              <div
-                                key={i}
-                                className={`tab ${selectedModelIndex === i ? 'active' : ''}`}
-                                onClick={() => setSelectedModelIndex(i)}
-                              >
-                                {m.title || `Model ${i + 1}`}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {(() => {
-                          const model = selectedChapter.model_3d_links[selectedModelIndex] || selectedChapter.model_3d_links[0];
-                          const src = model.path ? model3dSignedUrls[model.path] : model.url;
-                          return <Model3DViewer src={src} alt={model.title || selectedChapter.chapter} />;
-                        })()}
-                      </div>
-                    ) : (
-                      <Model3DViewer src={signed3dUrl || selectedChapter.model_3d_url} alt={selectedChapter.chapter} />
-                    )
-                  )}
                 </div>
+
+                {view === '3d' && (
+                  selectedChapter.model_3d_links?.length > 0 ? (
+                    <div>
+                      {selectedChapter.model_3d_links.length > 1 && (
+                        <div className="tabs">
+                          {selectedChapter.model_3d_links.map((m, i) => (
+                            <div
+                              key={i}
+                              className={`tab ${selectedModelIndex === i ? 'active' : ''}`}
+                              onClick={() => setSelectedModelIndex(i)}
+                            >
+                              {m.title || `Model ${i + 1}`}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {(() => {
+                        const model = selectedChapter.model_3d_links[selectedModelIndex] || selectedChapter.model_3d_links[0];
+                        const src = model.path ? model3dSignedUrls[model.path] : model.url;
+                        return <Model3DViewer src={src} alt={model.title || selectedChapter.chapter} />;
+                      })()}
+                    </div>
+                  ) : (
+                    <Model3DViewer src={signed3dUrl || selectedChapter.model_3d_url} alt={selectedChapter.chapter} />
+                  )
+                )}
 
                 {view === 'video' && (
                   <div>

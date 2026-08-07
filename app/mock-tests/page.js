@@ -208,7 +208,8 @@ export default function MockTests() {
             )}
           </div>
         ) : (
-          <div className="card">
+          <div className="card watermark-container">
+            <div className="watermark-overlay" aria-hidden="true" />
             <h2 style={{ marginTop: 0 }}>{selectedTest.title}</h2>
 
             {submitted ? (
