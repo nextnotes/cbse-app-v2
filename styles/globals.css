@@ -62,6 +62,49 @@ a {
   background-repeat: repeat;
 }
 
+/* Page-wide watermark frame — a thin strip of the same "vidyasetu.space"
+   text running along the left, right, and bottom edges of the viewport on
+   every page, like a border. Left/right strips run the text vertically
+   (rotated, tiling down the edge); the bottom strip runs it horizontally
+   (tiling across). Fixed to the viewport (not the page), so it stays put
+   while scrolling. The top edge is left out since the header bar already
+   occupies it. pointer-events: none throughout so it never intercepts
+   clicks/taps on real content underneath. */
+.watermark-frame {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+.watermark-frame-left,
+.watermark-frame-right,
+.watermark-frame-bottom {
+  position: absolute;
+  pointer-events: none;
+}
+.watermark-frame-left,
+.watermark-frame-right {
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='150'%3E%3Ctext x='14' y='75' font-family='sans-serif' font-size='11' fill='rgba(60,70,90,0.18)' text-anchor='middle' dominant-baseline='middle' transform='rotate(-90 14 75)'%3Evidyasetu.space%3C/text%3E%3C/svg%3E");
+  background-repeat: repeat-y;
+}
+.watermark-frame-left {
+  left: 0;
+}
+.watermark-frame-right {
+  right: 0;
+}
+.watermark-frame-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='28'%3E%3Ctext x='75' y='19' font-family='sans-serif' font-size='11' fill='rgba(60,70,90,0.18)' text-anchor='middle'%3Evidyasetu.space%3C/text%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+}
+
 .btn {
   display: inline-block;
   background: var(--primary);

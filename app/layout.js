@@ -30,7 +30,16 @@ export default function RootLayout({ children }) {
           src="https://cdnjs.cloudflare.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"
         ></script>
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Global watermark border frame — see .watermark-frame in
+            globals.css. Rendered once here so it appears on every page. */}
+        <div className="watermark-frame" aria-hidden="true">
+          <div className="watermark-frame-left" />
+          <div className="watermark-frame-right" />
+          <div className="watermark-frame-bottom" />
+        </div>
+      </body>
     </html>
   );
 }
