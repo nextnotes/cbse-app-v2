@@ -792,12 +792,54 @@ function MockTestsPanel() {
   const [loadingResults, setLoadingResults] = useState(false);
   const [passage, setPassage] = useState('');
   const [generatingFromPassage, setGeneratingFromPassage] = useState(false);
+  const [importChapters, setImportChapters] = useState([]);
+  const [importChapterId, setImportChapterId] = useState('');
+  const [importSectionLabel, setImportSectionLabel] = useState('');
 
   const SUBJECTS = ['English', 'Odia', 'Hindi', 'Sanskrit', 'Math', 'Science', 'SST', 'Computer'];
 
   useEffect(() => {
     loadTests();
   }, []);
+
+  // Fetch the list of chapters (grade+subject already-generated content) an
+  // admin can pull MCQs from — e.g. a Grammar chapter's MCQs for the
+  // Grammar section of a full mock test, or a Literature chapter's for the
+  // Literature section. Re-runs whenever grade/subject changes.
+  useEffect(() => {
+    async function loadImportChapters() {
+      const { data } = await supabase
+        .from('content')
+        .select('id, chapter, practice_questions')
+        .eq('grade', Number(grade))
+        .eq('subject', subject)
+        .order('order_index', { ascending: true });
+      setImportChapters(data || []);
+      setImportChapterId('');
+    }
+    loadImportChapters();
+  }, [grade, subject]);
+
+  // Pulls the MCQs from a chapter's existing practice set into this mock
+  // test, tagged with a section label the admin chooses (e.g. "Grammar",
+  // "Literature") so a single test can combine Reading + Grammar +
+  // Literature/Topic questions like a real full-length exam paper.
+  function importFromChapter() {
+    const chapterRow = importChapters.find((c) => String(c.id) === String(importChapterId));
+    if (!chapterRow) {
+      setMessage('❌ Pick a chapter to import from first.');
+      return;
+    }
+    const chapterMcqs = chapterRow.practice_questions?.mcq || [];
+    if (chapterMcqs.length === 0) {
+      setMessage(`❌ "${chapterRow.chapter}" has no MCQs in its practice set.`);
+      return;
+    }
+    const label = importSectionLabel.trim() || chapterRow.chapter;
+    const tagged = chapterMcqs.map((q) => ({ ...q, section: label }));
+    setQuestions([...questions, ...tagged]);
+    setMessage(`✅ Imported ${tagged.length} MCQs from "${chapterRow.chapter}" as section "${label}" — review them below before saving.`);
+  }
 
   async function loadTests() {
     const { data } = await supabase
@@ -824,12 +866,13 @@ function MockTestsPanel() {
       const res = await fetch('/api/admin/generate-mock-test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grade, passage }),
+        body: JSON.stringify({ grade, subject, passage }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Generation failed');
-      setQuestions([...questions, ...(data.questions || [])]);
-      setMessage(`✅ Added ${data.questions?.length || 0} questions from the passage — review them below before saving.`);
+      const tagged = (data.questions || []).map((q) => ({ ...q, section: q.section || 'Reading Comprehension' }));
+      setQuestions([...questions, ...tagged]);
+      setMessage(`✅ Added ${tagged.length} questions from the passage — review them below before saving.`);
     } catch (err) {
       setMessage('❌ ' + err.message);
     }
@@ -864,6 +907,8 @@ function MockTestsPanel() {
     setTitle('');
     setQuestions(EMPTY_MCQS);
     setPassage('');
+    setImportSectionLabel('');
+    setImportChapterId('');
     loadTests();
   }
 
@@ -936,6 +981,26 @@ function MockTestsPanel() {
         >
           {generatingFromPassage ? 'Generating...' : '✨ Generate MCQs from this passage (AI)'}
         </button>
+
+        <div style={{ background: '#f9fafc', border: '1px solid #e5e9f0', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+            Import MCQs from a chapter (e.g. a Grammar or Literature chapter, to build a full composite test)
+          </div>
+          <label>Chapter (from Std {grade} {subject})</label>
+          <select className="input" value={importChapterId} onChange={(e) => setImportChapterId(e.target.value)}>
+            <option value="">— Select a chapter —</option>
+            {importChapters.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.chapter} ({c.practice_questions?.mcq?.length || 0} MCQs)
+              </option>
+            ))}
+          </select>
+          <label>Section label (e.g. "Grammar", "Literature" — defaults to the chapter name)</label>
+          <input className="input" placeholder={importChapters.find((c) => String(c.id) === String(importChapterId))?.chapter || 'Section label'} value={importSectionLabel} onChange={(e) => setImportSectionLabel(e.target.value)} />
+          <button type="button" className="btn secondary" style={{ fontSize: 13, padding: '6px 12px' }} onClick={importFromChapter}>
+            📥 Import MCQs from this chapter
+          </button>
+        </div>
 
         <MCQBuilder items={questions} onChange={setQuestions} />
 
@@ -1044,24 +1109,56 @@ function MCQBuilder({ items, onChange }) {
   const [options, setOptions] = useState(['', '', '', '']);
   const [answer, setAnswer] = useState('');
   const [explanation, setExplanation] = useState('');
+  const [section, setSection] = useState('');
+  const [editingIndex, setEditingIndex] = useState(null); // null = adding new; number = editing items[index]
 
-  function addItem() {
-    const cleanOptions = options.map((o) => o.trim()).filter(Boolean);
-    if (!question.trim() || cleanOptions.length < 2 || !answer.trim()) return;
-    onChange([...items, { question: question.trim(), options: cleanOptions, answer: answer.trim(), explanation: explanation.trim() }]);
+  function resetForm() {
     setQuestion('');
     setOptions(['', '', '', '']);
     setAnswer('');
     setExplanation('');
+    setSection('');
+    setEditingIndex(null);
+  }
+
+  function addItem() {
+    const cleanOptions = options.map((o) => o.trim()).filter(Boolean);
+    if (!question.trim() || cleanOptions.length < 2 || !answer.trim()) return;
+    const newItem = { question: question.trim(), options: cleanOptions, answer: answer.trim(), explanation: explanation.trim(), section: section.trim() || undefined };
+    if (editingIndex !== null) {
+      onChange(items.map((it, i) => (i === editingIndex ? newItem : it)));
+    } else {
+      onChange([...items, newItem]);
+    }
+    resetForm();
+  }
+
+  function editItem(index) {
+    const item = items[index];
+    setQuestion(item.question || '');
+    // Pad to at least 4 option boxes so the form has room to add more.
+    const padded = [...(item.options || [])];
+    while (padded.length < 4) padded.push('');
+    setOptions(padded);
+    setAnswer(item.answer || '');
+    setExplanation(item.explanation || '');
+    setSection(item.section || '');
+    setEditingIndex(index);
   }
 
   function removeItem(index) {
     onChange(items.filter((_, i) => i !== index));
+    if (editingIndex === index) resetForm();
   }
 
   return (
     <div className="card" style={{ background: '#f9fafc', boxShadow: 'none', marginBottom: 14 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>MCQs — {items.length} added</div>
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+        MCQs — {items.length} added
+        {editingIndex !== null && (
+          <span style={{ color: '#5b7fdb', fontWeight: 600 }}> · editing question {editingIndex + 1}</span>
+        )}
+      </div>
 
       <label>Question</label>
       <textarea className="input" rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} />
@@ -1087,15 +1184,41 @@ function MCQBuilder({ items, onChange }) {
       <label>Explanation (optional)</label>
       <input className="input" value={explanation} onChange={(e) => setExplanation(e.target.value)} />
 
+      <label>Section (optional — e.g. "Reading", "Grammar", "Literature", for a combined test)</label>
+      <input className="input" value={section} onChange={(e) => setSection(e.target.value)} />
+
       <button type="button" className="btn secondary" onClick={addItem}>
-        + Add question
+        {editingIndex !== null ? '✓ Save changes' : '+ Add question'}
       </button>
+      {editingIndex !== null && (
+        <button type="button" className="btn secondary" style={{ marginLeft: 8 }} onClick={resetForm}>
+          Cancel edit
+        </button>
+      )}
 
       {items.length > 0 && (
         <div style={{ marginTop: 12 }}>
           {items.map((item, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '8px 0', borderBottom: '1px solid #e5e9f0', fontSize: 13 }}>
-              <span style={{ flex: 1 }}>{i + 1}. {item.question.slice(0, 60)}{item.question.length > 60 ? '...' : ''}</span>
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 0',
+                borderBottom: '1px solid #e5e9f0',
+                fontSize: 13,
+                background: editingIndex === i ? '#eef2fc' : 'transparent',
+              }}
+            >
+              <span style={{ flex: 1 }}>
+                {item.section && <span style={{ color: '#5b7fdb', fontWeight: 700 }}>[{item.section}] </span>}
+                {i + 1}. {item.question.slice(0, 60)}{item.question.length > 60 ? '...' : ''}
+              </span>
+              <button type="button" className="btn secondary" style={{ padding: '2px 8px', fontSize: 11, flexShrink: 0 }} onClick={() => editItem(i)}>
+                Edit
+              </button>
               <button type="button" className="btn danger" style={{ padding: '2px 8px', fontSize: 11, flexShrink: 0 }} onClick={() => removeItem(i)}>✕</button>
             </div>
           ))}

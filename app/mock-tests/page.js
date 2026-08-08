@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -24,6 +24,8 @@ export default function MockTests() {
   const [attemptsByTest, setAttemptsByTest] = useState({});
   const [selectedTest, setSelectedTest] = useState(null);
   const [answers, setAnswers] = useState({});
+  const [currentQ, setCurrentQ] = useState(0);
+  const touchStartX = useRef(0);
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -83,6 +85,12 @@ export default function MockTests() {
     setAnswers({});
     setSubmitted(false);
     setScore(0);
+    setCurrentQ(0);
+  }
+
+  function goToQuestion(i, total) {
+    if (i < 0 || i >= total) return;
+    setCurrentQ(i);
   }
 
   async function handleSubmit() {
@@ -212,25 +220,49 @@ export default function MockTests() {
             <div className="watermark-overlay" aria-hidden="true" />
             <h2 style={{ marginTop: 0 }}>{selectedTest.title}</h2>
 
-            {selectedTest.passage && (
+            {(() => {
+              // In a combined test (Reading + Grammar + Literature sections
+              // all in one), only show the passage while the student is on
+              // a Reading-section question — a Grammar question doesn't
+              // need it taking up screen space. Tests with no section tags
+              // at all (the simple case) keep showing it throughout, as
+              // before. Always shown in the post-submission review, since
+              // full context is useful there regardless of section.
+              const hasSections = selectedTest.questions?.some((q) => q.section);
+              const currentSection = !submitted ? selectedTest.questions?.[currentQ]?.section : null;
+              const isReadingSection = !currentSection || /read/i.test(currentSection);
+              const showPassage = selectedTest.passage && (submitted || !hasSections || isReadingSection);
+              return showPassage;
+            })() && (
               <div
                 style={{
-                  background: '#f9fafc',
-                  border: '1px solid #e5e9f0',
-                  borderRadius: 10,
-                  padding: '14px 16px',
-                  marginBottom: 18,
-                  fontSize: 14,
-                  lineHeight: 1.7,
-                  whiteSpace: 'pre-line',
-                  maxHeight: 320,
-                  overflowY: 'auto',
+                  position: submitted ? 'static' : 'sticky',
+                  top: 0,
+                  background: '#fff',
+                  zIndex: 5,
+                  paddingBottom: 10,
+                  marginBottom: 10,
+                  borderBottom: '1px solid #e5e9f0',
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
-                  📖 READ THE PASSAGE
+                <div
+                  style={{
+                    background: '#f9fafc',
+                    border: '1px solid #e5e9f0',
+                    borderRadius: 10,
+                    padding: '12px 14px',
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    whiteSpace: 'pre-line',
+                    maxHeight: submitted ? 320 : 180,
+                    overflowY: 'auto',
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 11, color: '#6b7280', marginBottom: 6 }}>
+                    📖 PASSAGE
+                  </div>
+                  {selectedTest.passage}
                 </div>
-                {selectedTest.passage}
               </div>
             )}
 
@@ -278,37 +310,129 @@ export default function MockTests() {
                 </button>
               </div>
             ) : (
-              <div>
-                {selectedTest.questions.map((q, i) => (
-                  <div key={i} className="card" style={{ marginBottom: 12, boxShadow: 'none' }}>
-                    <div style={{ fontWeight: 600, marginBottom: 8 }}>{i + 1}. {q.question}</div>
-                    {q.options.map((opt, j) => {
-                      const isSelected = answers[i] === opt;
-                      return (
+              <div
+                onTouchStart={(e) => { touchStartX.current = e.changedTouches[0].screenX; }}
+                onTouchEnd={(e) => {
+                  const dx = e.changedTouches[0].screenX - touchStartX.current;
+                  if (Math.abs(dx) < 40) return;
+                  if (dx < 0) goToQuestion(currentQ + 1, selectedTest.questions.length); // swipe left -> next
+                  else goToQuestion(currentQ - 1, selectedTest.questions.length); // swipe right -> prev
+                }}
+              >
+                {/* Progress dots */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 6, margin: '4px 0 14px' }}>
+                  {selectedTest.questions.map((_, i) => {
+                    const isActive = i === currentQ;
+                    const isDone = answers[i] !== undefined;
+                    return (
+                      <div
+                        key={i}
+                        onClick={() => goToQuestion(i, selectedTest.questions.length)}
+                        style={{
+                          width: isActive ? 18 : 7,
+                          height: 7,
+                          borderRadius: isActive ? 4 : '50%',
+                          background: isActive || isDone ? '#5b7fdb' : '#e5e9f0',
+                          opacity: isActive ? 1 : isDone ? 0.45 : 1,
+                          cursor: 'pointer',
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* Current question */}
+                {(() => {
+                  const q = selectedTest.questions[currentQ];
+                  return (
+                    <div>
+                      {q.section && (
                         <div
-                          key={j}
-                          onClick={() => setAnswers({ ...answers, [i]: opt })}
                           style={{
-                            padding: '8px 12px',
-                            borderRadius: 8,
-                            border: '1.5px solid',
-                            borderColor: isSelected ? '#5b7fdb' : '#e5e9f0',
-                            background: isSelected ? '#eef2fc' : '#fff',
-                            marginBottom: 6,
-                            cursor: 'pointer',
-                            fontSize: 14,
+                            display: 'inline-block',
+                            background: '#eef2fc',
+                            color: '#4562b8',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: '3px 10px',
+                            borderRadius: 999,
+                            marginBottom: 8,
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.3,
                           }}
                         >
-                          {opt}
+                          {q.section}
                         </div>
-                      );
-                    })}
-                  </div>
-                ))}
-                <button className="btn" onClick={handleSubmit}>
+                      )}
+                      <div className="card" style={{ marginBottom: 12, boxShadow: 'none' }}>
+                        <div style={{ fontWeight: 600, marginBottom: 8, whiteSpace: 'pre-line' }}>
+                          {currentQ + 1}. {q.question}
+                        </div>
+                        {q.image?.imageUrl && (
+                          <div style={{ marginBottom: 10 }}>
+                            <img
+                              src={q.image.imageUrl}
+                              alt={q.image.caption || 'Question figure'}
+                              style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid #e5e9f0' }}
+                            />
+                          </div>
+                        )}
+                        {q.options.map((opt, j) => {
+                        const isSelected = answers[currentQ] === opt;
+                        return (
+                          <div
+                            key={j}
+                            onClick={() => setAnswers({ ...answers, [currentQ]: opt })}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 8,
+                              border: '1.5px solid',
+                              borderColor: isSelected ? '#5b7fdb' : '#e5e9f0',
+                              background: isSelected ? '#eef2fc' : '#fff',
+                              marginBottom: 6,
+                              cursor: 'pointer',
+                              fontSize: 14,
+                            }}
+                          >
+                            {opt}
+                          </div>
+                        );
+                      })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Prev / Next nav */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+                  <button
+                    className="btn secondary"
+                    style={{ width: 44, height: 44, borderRadius: '50%', padding: 0, fontSize: 18, fontWeight: 700 }}
+                    disabled={currentQ === 0}
+                    onClick={() => goToQuestion(currentQ - 1, selectedTest.questions.length)}
+                  >
+                    ‹
+                  </button>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#6b7280' }}>
+                    Question {currentQ + 1} of {selectedTest.questions.length}
+                  </span>
+                  <button
+                    className="btn secondary"
+                    style={{ width: 44, height: 44, borderRadius: '50%', padding: 0, fontSize: 18, fontWeight: 700 }}
+                    disabled={currentQ === selectedTest.questions.length - 1}
+                    onClick={() => goToQuestion(currentQ + 1, selectedTest.questions.length)}
+                  >
+                    ›
+                  </button>
+                </div>
+                <div style={{ textAlign: 'center', fontSize: 12, color: '#6b7280', marginBottom: 14 }}>
+                  Swipe left / right on the question, or tap the arrows
+                </div>
+
+                <button className="btn" style={{ width: '100%' }} onClick={handleSubmit}>
                   Submit Test
                 </button>
-                <button className="btn secondary" style={{ marginLeft: 8 }} onClick={() => setSelectedTest(null)}>
+                <button className="btn secondary" style={{ width: '100%', marginTop: 8 }} onClick={() => setSelectedTest(null)}>
                   Cancel
                 </button>
               </div>

@@ -6,16 +6,21 @@ import { NextResponse } from 'next/server';
 // tests are MCQ-only and auto-scored, so every question here — including
 // question types that a real board paper would phrase as short written
 // answers — is converted into a 4-option multiple-choice question that
-// still genuinely tests the same reading skill.
-const PASSAGE_MCQ_PROMPT = `You are a CBSE English curriculum content writer for Indian school students (Std 6-10), writing unseen-passage reading comprehension questions for a mock test, modeled on real CBSE board Reading Skills sections.
+// still genuinely tests the same reading skill. Works for any language
+// subject (English, Odia, Hindi, Sanskrit) — the questions and options are
+// always written in the SAME language as the passage itself, not forced
+// into English, so this isn't an English-only feature.
+const PASSAGE_MCQ_PROMPT = `You are a CBSE curriculum content writer for Indian school students (Std 6-10), writing unseen-passage reading comprehension questions for a mock test, modeled on real CBSE board Reading Skills sections.
 
-You will be given an unseen passage (discursive/factual, or case-based/data-driven) and a grade level. Produce STRICT JSON with this exact shape and nothing else (no markdown fences, no preamble):
+You will be given the subject, a grade level, and an unseen passage (discursive/factual, or case-based/data-driven). Produce STRICT JSON with this exact shape and nothing else (no markdown fences, no preamble):
 
 {
   "questions": [
     { "question": "string", "options": ["string","string","string","string"], "answer": "string (must match one option exactly)", "explanation": "string, 1-2 sentences on why that option is correct, referencing the passage" }
   ]
 }
+
+CRITICAL LANGUAGE RULE: write every question, option, and explanation in the SAME language and script as the passage itself — if the passage is in Odia, write in Odia (Odia script); if Hindi, write in Hindi (Devanagari); if English, write in English. Never translate the passage's language into a different one, regardless of what the "subject" field says.
 
 Produce 8-10 questions, covering the range of real board-exam reading question types — all converted into 4-option MCQ form since this test is auto-scored:
 - Main idea / gist of a specific paragraph.
@@ -42,12 +47,12 @@ export async function POST(request) {
     );
   }
 
-  const { grade, passage } = await request.json();
+  const { grade, subject, passage } = await request.json();
   if (!passage || !passage.trim()) {
     return NextResponse.json({ error: 'Paste an unseen passage first.' }, { status: 400 });
   }
 
-  const userPrompt = `Grade: ${grade}.\n\nHere is the unseen passage:\n\n${passage}`;
+  const userPrompt = `Grade: ${grade}, Subject: ${subject || '(unspecified)'}.\n\nHere is the unseen passage:\n\n${passage}`;
 
   try {
     const response = await fetch(
