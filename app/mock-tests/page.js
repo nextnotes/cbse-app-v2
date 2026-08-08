@@ -212,6 +212,28 @@ export default function MockTests() {
             <div className="watermark-overlay" aria-hidden="true" />
             <h2 style={{ marginTop: 0 }}>{selectedTest.title}</h2>
 
+            {selectedTest.passage && (
+              <div
+                style={{
+                  background: '#f9fafc',
+                  border: '1px solid #e5e9f0',
+                  borderRadius: 10,
+                  padding: '14px 16px',
+                  marginBottom: 18,
+                  fontSize: 14,
+                  lineHeight: 1.7,
+                  whiteSpace: 'pre-line',
+                  maxHeight: 320,
+                  overflowY: 'auto',
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+                  📖 READ THE PASSAGE
+                </div>
+                {selectedTest.passage}
+              </div>
+            )}
+
             {submitted ? (
               <div>
                 <div className="notes-recap" style={{ marginTop: 0, marginBottom: 20 }}>

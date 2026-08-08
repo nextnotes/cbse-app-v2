@@ -458,7 +458,19 @@ function MCQSection({ questions }) {
         Question {index + 1} of {valid.length} · Score: {score}
       </div>
       <div className="card" style={{ boxShadow: 'none', border: '1.5px solid var(--primary)' }}>
-        <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 15 }}>{q.question}</div>
+        <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 15, whiteSpace: 'pre-line' }}>{q.question}</div>
+        {q.image?.imageUrl && (
+          <div style={{ marginBottom: 12 }}>
+            <img
+              src={q.image.imageUrl}
+              alt={q.image.caption || 'Question figure'}
+              style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid #e5e9f0' }}
+            />
+            {q.image.caption && (
+              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{q.image.caption}</div>
+            )}
+          </div>
+        )}
         {q.options.map((opt, j) => {
           const isSelected = selected === opt;
           const isCorrectOpt = opt === q.answer;
@@ -602,9 +614,21 @@ function QASection({ questions, compact, pdfUrl, accent = 'var(--primary)', mode
               className="card"
               style={{ marginBottom: 12, boxShadow: 'none', borderLeft: `4px solid ${accent}` }}
             >
-              <div style={{ fontWeight: 600, marginBottom: compact ? 4 : 8 }}>
+              <div style={{ fontWeight: 600, marginBottom: compact ? 4 : 8, whiteSpace: 'pre-line' }}>
                 {i + 1}. {q.question}
               </div>
+              {q.image?.imageUrl && (
+                <div style={{ marginBottom: 10 }}>
+                  <img
+                    src={q.image.imageUrl}
+                    alt={q.image.caption || 'Question figure'}
+                    style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid #e5e9f0' }}
+                  />
+                  {q.image.caption && (
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{q.image.caption}</div>
+                  )}
+                </div>
+              )}
               {revealed[i] ? (
                 <div
                   style={{

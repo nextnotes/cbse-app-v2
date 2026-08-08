@@ -13,16 +13,16 @@ const JSON_SHAPE = `Produce study material as STRICT JSON with this exact shape 
   },
   "practice_questions": {
     "mcq": [
-      { "question": "string", "options": ["string","string","string","string"], "answer": "string (must match one option exactly)", "explanation": "string" }
+      { "question": "string", "options": ["string","string","string","string"], "answer": "string (must match one option exactly)", "explanation": "string", "image": "OPTIONAL — omit entirely unless needed. If present: {caption, page?, crop?, search_query?}, same shape as an IMAGE BLOCK below. Only when the question genuinely can't be answered without a figure/diagram." }
     ],
     "one_liners": [
       { "question": "string, a quick fact-recall question", "answer": "string, a short one-sentence or few-word answer" }
     ],
     "short_answer": [
-      { "question": "string", "answer": "string" }
+      { "question": "string", "answer": "string", "image": "OPTIONAL — omit entirely unless needed. Same {caption, page?, crop?, search_query?} shape as above." }
     ],
     "long_answer": [
-      { "question": "string", "answer": "string" }
+      { "question": "string", "answer": "string", "image": "OPTIONAL — omit entirely unless needed. Same {caption, page?, crop?, search_query?} shape as above." }
     ]
   },
   "mindmap": { "title": "string", "children": [ { "title": "string", "children": [...] } ] }
@@ -71,7 +71,29 @@ PRACTICE QUESTIONS — Math needs actual problems to solve, not just recall:
 - Short-answer: 8-10 — each should be a problem to solve; the "answer" must be formatted as numbered steps (one step per line, using "\n" between steps, e.g. "1. ...\n2. ...\n3. Final answer: ..."), not a paragraph.
 - Long-answer: 5-6 — multi-step word problems; the "answer" must be formatted as numbered steps (one step per line using "\n"), ending with the final answer clearly stated on its own line.
 
+QUESTION FIGURES — geometry questions routinely can't be answered without their figure (e.g. a real board question reads "In fig.1, ∠DBC equals..." and is meaningless without seeing fig.1). Whenever a question you write depends on a diagram like this — a labelled triangle/polygon with marked angles, a coordinate-geometry plot, a solid shape for mensuration, a number line — attach an "image" field to that question object, following the same IMAGE BLOCKS rules as above (prefer "page"+"crop" from a shown source page; "search_query" only for a generic well-known figure; skip the question's image and instead write the question so it's self-contained with numbers stated in words if no figure can be resolved). Never write a question that assumes an unseen figure and then fail to attach one.
+
 Cover the full breadth of the topic so questions don't repeat the same sub-point. Also produce a mind map with 2 levels of depth covering the key sub-topics/methods.`;
+
+// Std 9-10 Math answers must read like an actual CBSE board-exam marking
+// scheme credits a student's script: concise, step-marked, formal working —
+// not a tutorial explanation. Modeled directly on a real SA-I Class IX
+// Math marking scheme (blueprint + sample paper + step-wise solutions).
+// This is appended to MATH_PROMPT only for grade 9 and grade 10; Std 6-8
+// keep the friendlier, more explanatory worked-example style above.
+const MATH_BOARD_STYLE_RULES = `
+STD 9-10 BOARD-EXAM ANSWER-WRITING STYLE (this OVERRIDES the Short-answer/Long-answer "answer" formatting above, and also applies to "worked_example" blocks in the notes, for this grade level only — modeled on real CBSE SA-I marking schemes):
+- Skip conversational scaffolding ("Let's solve this step by step", "First, we need to...") — go straight into the mathematical working, exactly like a topper's answer script, not a tutorial.
+- Use standard mathematical shorthand throughout: "⇒" for an implied/derived next step, "∴" for a concluding statement, proper roots/exponents/fractions written out in full (e.g. "√(5+2√6)", "x²-4x+1=0") — not spelled-out words for these symbols.
+- Every line should be exactly one identifiable working step (one substitution, one simplification, one application of a formula/identity/theorem) — this is how each line earns its own mark in a real marking scheme. Don't merge multiple steps into one dense line, and don't split a single step across two lines.
+- For algebraic problems: if a substitution simplifies the working (e.g. "Let x²+7x = p, 2x-1 = q"), state it once, then work entirely in the substituted form until the final resubstitution — don't re-explain the substitution at every step.
+- For geometry proofs: name the exact justification for every deduction, the way a board answer would — the specific theorem, postulate, axiom, or congruence criterion used (e.g. "AD=BC, AB=AB, ∠DAB=∠CBA ⇒ ΔDAB≅ΔCBA (SAS)", or "Euclid's Axiom: if equals are subtracted from equals, the remainders are equal"). Never state a conclusion without naming what justifies it.
+- End every solved answer with the final result isolated on its own last line (e.g. "∴ x = 115°"), not buried mid-paragraph.
+- Word problems should state what's being found in one short formal line before the working starts — not a friendly lead-in sentence.
+This board-exam style applies only to the "answer" field of short-answer/long-answer practice questions and to "worked_example" steps — it does NOT apply to "paragraph"/"heading" explanatory text elsewhere in the notes, which should stay in the plain, friendly teaching language instructed above. Only the solved-problem working itself should read like an exam script.`;
+
+const MATH_PROMPT_SENIOR = `${MATH_PROMPT}
+${MATH_BOARD_STYLE_RULES}`;
 
 const LANGUAGE_PROMPT = `You are a CBSE language curriculum content writer for Indian school students (Std 6-10), writing for a language/literature subject (English, Odia, Hindi, or Sanskrit).
 Given a topic, poem, chapter, or source text, ${JSON_SHAPE}
@@ -121,6 +143,22 @@ Use standard literary Odia vocabulary suitable for scoring full marks in a Matri
 const ODIA_PROMPT = `${LANGUAGE_PROMPT}
 ${ODIA_LONG_ANSWER_RULES}`;
 
+// Std 9-10 CBSE English Literature answers follow specific board-exam
+// conventions: extract-based questions (quoting real lines from the text,
+// then asking several questions about that specific extract) are the
+// dominant format, and answers are graded on Content/Expression/Accuracy
+// within strict word-count bands. Modeled on a real Class X English SQP +
+// marking scheme. Appended to LANGUAGE_PROMPT only for English, grade 9-10.
+const ENGLISH_SENIOR_RULES = `
+STD 9-10 ENGLISH LITERATURE — BOARD-EXAM CONVENTIONS (this refines, not replaces, the general Short-answer/Long-answer instructions above):
+
+1. EXTRACT-BASED QUESTIONS — this is the single most common CBSE Class 9-10 English literature question format. Whenever you were given the actual source text (not just a topic name), write SOME long_answer and short_answer items this way: open the "question" with a genuine extract quoted VERBATIM from the provided source text (3-6 lines for poetry, 3-5 sentences for prose) — copy it exactly, never paraphrase or invent it — followed by a line break ("\\n") and then 1-3 analytical sub-questions about that specific extract (inference, tone, what a phrase suggests, a literary device used, what a character reveals). If you were only given a topic name with no source text, skip this format entirely — never fabricate a quote you don't actually have; use the general essay-style questions instead.
+2. WORD COUNT & STRUCTURE — a real board answer is continuous analytical prose (not bullets — this already matches the general instruction above), but keep answers within realistic exam word bands so they read like an actual student's scoring answer: roughly 40-60 words for a question worth 2-3 marks (most short_answer items), and 100-120 words for a full essay-style long_answer question. Within that length, the answer should still move from a brief framing/context sentence, into developed reasoning that references specific details or wording from the text, and where it fits naturally, a closing sentence — but written as flowing prose, not labelled sections.
+3. Keep doing plain word-meaning/comprehension one-liners and grammar-flavoured MCQs as already instructed above — this section only refines short_answer/long_answer for literature content.`;
+
+const ENGLISH_PROMPT_SENIOR = `${LANGUAGE_PROMPT}
+${ENGLISH_SENIOR_RULES}`;
+
 // Standalone grammar / vocabulary topic — NOT tied to a literature passage
 // (e.g. "Tenses", "Active-Passive Voice", "Word Building"). Used when the admin
 // flags a language-subject topic as a grammar/vocabulary topic instead of a
@@ -146,6 +184,19 @@ PRACTICE QUESTIONS — heavy on applying the rule, not just remembering it:
 
 Cover every sub-rule/pattern of the topic so questions don't repeat the same case. Also produce a mind map with 2 levels of depth covering the rule's sub-patterns/cases.`;
 
+// Std 9-10 CBSE Grammar sections have two very characteristic, recurring
+// task types beyond plain MCQs/fill-blanks — modeled on a real Class X
+// English SQP + marking scheme. Appended to GRAMMAR_PROMPT only for
+// grade 9-10; Std 6-8 grammar stays at the simpler level already instructed.
+const GRAMMAR_SENIOR_RULES = `
+STD 9-10 GRAMMAR ADDITIONS (modeled on real CBSE board sample papers) — work a few of these into the short-answer items:
+1. ERROR + CORRECTION: present a sentence containing one grammatical error, then ask the student to identify and correct it. Format the "answer" as exactly two labelled parts on their own lines: "Error: <the wrong word/phrase>\\nCorrection: <the fix>".
+2. REPORTED SPEECH: give a line of direct speech (a statement, question, or command) and ask the student to report it in indirect/reported speech. The "answer" should be the single correctly-transformed sentence.
+Include a handful of these (2-4 combined) among the short-answer items — don't replace the existing transform/correct/complete style entirely, just add these two recognizable formats into the mix.`;
+
+const GRAMMAR_PROMPT_SENIOR = `${GRAMMAR_PROMPT}
+${GRAMMAR_SENIOR_RULES}`;
+
 const GENERAL_PROMPT = `You are a CBSE curriculum content writer for Indian school students (Std 6-10).
 Given a topic or source text, ${JSON_SHAPE}
 
@@ -168,16 +219,44 @@ PRACTICE QUESTIONS — produce these counts:
 - Short-answer: 10-12 — format the "answer" as 2-4 short bullet points (one point per line using "\n- "), not a flowing paragraph.
 - Long-answer: 5-6 — format the "answer" as a bulleted list of key points (one point per line using "\n- ", covering all the main ideas a full-mark answer would need), not a continuous paragraph.
 
+QUESTION FIGURES — some SST/Science/Computer questions genuinely need a map, diagram, or labelled figure to be answerable (e.g. "identify the marked regions on the map", "label the parts shown in the diagram"). Whenever a question you write depends on this, attach an "image" field to that question object, following the same IMAGE BLOCKS rules as above. Don't force this — most questions here are answerable from text alone — but where a real exam would show a figure, do the same, and never write a question that assumes an unseen figure without attaching one.
+
 Cover the full breadth of the topic so questions don't repeat the same sub-point — spread them across all the key ideas in the chapter. Also produce a mind map with 2 levels of depth covering the key sub-topics.`;
 
-function getSystemPrompt(subject, contentType) {
+// Std 9-10 additions to GENERAL_PROMPT, modeled on a real CBSE Class X
+// Science board sample paper + marking scheme: (1) numerical/formula-based
+// answers need the same board-exam step style as Math, not generic bullets;
+// (2) Assertion-Reason is a real, recurring MCQ subtype at this level.
+const GENERAL_BOARD_STYLE_RULES = `
+STD 9-10 ADDITIONS (modeled on real CBSE board sample papers):
+
+1. NUMERICAL/FORMULA-BASED ANSWERS (mainly Science — Physics topics like electricity, light, motion, work & energy): when a short-answer or long-answer question requires solving with a formula rather than describing/explaining, format its "answer" the same way a board marking scheme credits it — NOT as bullet points of ideas:
+   - State the relevant formula on its own line first.
+   - Then substitute the given values and simplify, one step per line (use "\\n" between steps), using "⇒" for a derived next step.
+   - End with the final numeric answer (with correct unit) isolated on its own last line, e.g. "∴ f = 30 mm".
+   - Skip conversational lead-ins ("Let's solve this...") — go straight to the formula and substitution, like a topper's answer script.
+   This does NOT apply to descriptive/explanatory Science, SST, or Computer answers — those keep the bulleted-key-points format described above.
+
+2. ASSERTION-REASON MCQs: include 2-4 of the "mcq" items (out of the 25-40) as Assertion-Reason questions, a standard CBSE board format. For these: "question" should present "Assertion (A): ..." and "Reason (R): ..." as two labelled sentences (use "\\n" between them), and "options" must be exactly these four, in this exact wording and order:
+   ["Both A and R are true, and R is the correct explanation of A.", "Both A and R are true, and R is not the correct explanation of A.", "A is true but R is false.", "A is false but R is true."]
+   "answer" must match one of these four option strings exactly. Use this sparingly (2-4 questions, not more) and only where a genuine cause-and-effect or true/false relationship between two statements exists — don't force it onto content that doesn't fit this pattern.`;
+
+const GENERAL_PROMPT_SENIOR = `${GENERAL_PROMPT}
+${GENERAL_BOARD_STYLE_RULES}`;
+
+function getSystemPrompt(subject, contentType, grade) {
   const s = (subject || '').toLowerCase();
   const isLanguage = ['english', 'odia', 'hindi', 'sanskrit'].includes(s);
-  if (isLanguage && contentType === 'grammar') return GRAMMAR_PROMPT;
-  if (s === 'math') return MATH_PROMPT;
+  const g = parseInt(grade, 10);
+  if (isLanguage && contentType === 'grammar') {
+    return g >= 9 ? GRAMMAR_PROMPT_SENIOR : GRAMMAR_PROMPT;
+  }
+  if (s === 'math') return g >= 9 ? MATH_PROMPT_SENIOR : MATH_PROMPT;
   if (s === 'odia') return ODIA_PROMPT;
+  if (s === 'english') return g >= 9 ? ENGLISH_PROMPT_SENIOR : LANGUAGE_PROMPT;
   if (isLanguage) return LANGUAGE_PROMPT;
-  return GENERAL_PROMPT; // SST, Science, Computer
+  // SST, Science, Computer
+  return g >= 9 ? GENERAL_PROMPT_SENIOR : GENERAL_PROMPT;
 }
 
 // Cap how many page photos we send to Gemini per request — keeps payload size
@@ -281,6 +360,32 @@ async function searchWikimediaImage(query) {
   return null;
 }
 
+// Resolves a single {page?, crop?, search_query?} hint (from either a notes
+// "image" block or a practice question's "image" field) into a real,
+// permanently-hosted imageUrl. Returns null if it can't be resolved — the
+// caller should drop the image rather than show something broken.
+async function resolveImageHint(hint, pageImagesByNumber) {
+  if (!hint) return null;
+  try {
+    if (hint.page && pageImagesByNumber.has(Number(hint.page))) {
+      const src = pageImagesByNumber.get(Number(hint.page));
+      const imageUrl = await uploadPageImageToStorage(src.dataBase64, src.mimeType, hint.page, hint.crop);
+      if (imageUrl) {
+        return { caption: hint.caption || '', imageUrl };
+      }
+    }
+    if (hint.search_query) {
+      const found = await searchWikimediaImage(hint.search_query);
+      if (found) {
+        return { caption: hint.caption || '', imageUrl: found.imageUrl, attribution: found.attribution };
+      }
+    }
+  } catch {
+    // Image resolution is best-effort; never let it fail the whole chapter.
+  }
+  return null;
+}
+
 // Walks the flat notes.blocks array and turns each "image" block's "page" or
 // "search_query" hint into a real, permanently-hosted imageUrl. Blocks that
 // can't be resolved to a real image are dropped rather than left broken.
@@ -292,33 +397,36 @@ async function resolveImageBlocks(notes, pageImagesByNumber) {
       resolved.push(block);
       continue;
     }
-    try {
-      if (block.page && pageImagesByNumber.has(Number(block.page))) {
-        const src = pageImagesByNumber.get(Number(block.page));
-        const imageUrl = await uploadPageImageToStorage(src.dataBase64, src.mimeType, block.page, block.crop);
-        if (imageUrl) {
-          resolved.push({ type: 'image', caption: block.caption || '', imageUrl });
-          continue;
-        }
-      }
-      if (block.search_query) {
-        const found = await searchWikimediaImage(block.search_query);
-        if (found) {
-          resolved.push({
-            type: 'image',
-            caption: block.caption || '',
-            imageUrl: found.imageUrl,
-            attribution: found.attribution,
-          });
-          continue;
-        }
-      }
-      // Couldn't resolve this one — drop it rather than showing a broken image.
-    } catch {
-      // Image resolution is best-effort; never let it fail the whole chapter.
+    const found = await resolveImageHint(block, pageImagesByNumber);
+    if (found) {
+      resolved.push({ type: 'image', ...found });
     }
+    // else: couldn't resolve this one — drop it rather than showing a broken image.
   }
   notes.blocks = resolved;
+}
+
+// Walks mcq/short_answer/long_answer practice questions and turns each
+// question's optional "image" hint into a real imageUrl, the same way notes
+// image blocks are resolved. Questions that had a hint that couldn't be
+// resolved just lose the "image" field (the question text itself still
+// stands on its own — the AI was instructed to only add a hint it could
+// plausibly resolve, but this is a safety net).
+async function resolveQuestionImages(practiceQuestions, pageImagesByNumber) {
+  if (!practiceQuestions) return;
+  for (const key of ['mcq', 'short_answer', 'long_answer']) {
+    const list = practiceQuestions[key];
+    if (!Array.isArray(list)) continue;
+    for (const q of list) {
+      if (!q || !q.image) continue;
+      const found = await resolveImageHint(q.image, pageImagesByNumber);
+      if (found) {
+        q.image = found;
+      } else {
+        delete q.image;
+      }
+    }
+  }
 }
 
 // Defense in depth: even with the plain-text instruction above, models don't
@@ -358,7 +466,7 @@ export async function POST(request) {
       ? `Grade: ${grade}, Subject: ${subject}, Chapter: ${chapter || '(untitled)'}.\n\nHere is source text to base the notes and questions on:\n\n${sourceText}`
       : `Grade: ${grade}, Subject: ${subject}, Chapter: ${chapter || topic}.\n\nGenerate CBSE-aligned study material for the topic: "${topic}".`;
 
-  const systemPrompt = getSystemPrompt(subject, contentType);
+  const systemPrompt = getSystemPrompt(subject, contentType, grade);
 
   // Build the page-photo parts (if any were sent) and an index for later
   // re-uploading whichever pages the model actually picks.
@@ -405,6 +513,7 @@ export async function POST(request) {
     parsed = stripHtmlTags(parsed);
 
     await resolveImageBlocks(parsed.notes, pageImagesByNumber);
+    await resolveQuestionImages(parsed.practice_questions, pageImagesByNumber);
 
     return NextResponse.json(parsed);
   } catch (err) {

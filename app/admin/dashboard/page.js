@@ -790,6 +790,8 @@ function MockTestsPanel() {
   const [resultsFor, setResultsFor] = useState(null); // test object or null
   const [attempts, setAttempts] = useState([]);
   const [loadingResults, setLoadingResults] = useState(false);
+  const [passage, setPassage] = useState('');
+  const [generatingFromPassage, setGeneratingFromPassage] = useState(false);
 
   const SUBJECTS = ['English', 'Odia', 'Hindi', 'Sanskrit', 'Math', 'Science', 'SST', 'Computer'];
 
@@ -805,6 +807,33 @@ function MockTestsPanel() {
       .order('subject', { ascending: true })
       .order('created_at', { ascending: false });
     setTests(data || []);
+  }
+
+  // Unseen-passage reading comprehension: paste a passage, AI drafts 8-10
+  // MCQs testing it. Admin reviews/edits the drafted MCQs below (via
+  // MCQBuilder or the JSON editor) before saving — this doesn't save
+  // anything on its own.
+  async function generateFromPassage() {
+    if (!passage.trim()) {
+      setMessage('❌ Paste an unseen passage first.');
+      return;
+    }
+    setGeneratingFromPassage(true);
+    setMessage('');
+    try {
+      const res = await fetch('/api/admin/generate-mock-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grade, passage }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Generation failed');
+      setQuestions([...questions, ...(data.questions || [])]);
+      setMessage(`✅ Added ${data.questions?.length || 0} questions from the passage — review them below before saving.`);
+    } catch (err) {
+      setMessage('❌ ' + err.message);
+    }
+    setGeneratingFromPassage(false);
   }
 
   async function handleCreateTest() {
@@ -823,6 +852,7 @@ function MockTestsPanel() {
       subject,
       title: title.trim(),
       questions,
+      passage: passage.trim() || null,
       created_by: user.id,
     });
     setSaving(false);
@@ -833,6 +863,7 @@ function MockTestsPanel() {
     setMessage('✅ Test created!');
     setTitle('');
     setQuestions(EMPTY_MCQS);
+    setPassage('');
     loadTests();
   }
 
@@ -888,6 +919,24 @@ function MockTestsPanel() {
         <label>Test title</label>
         <input className="input" placeholder="e.g. Chapter 1-3 Mock Test" value={title} onChange={(e) => setTitle(e.target.value)} />
 
+        <label>Unseen passage (optional — for reading comprehension tests)</label>
+        <textarea
+          className="input"
+          rows={8}
+          placeholder="Paste an unseen passage here. Students will see it above the questions when taking the test."
+          value={passage}
+          onChange={(e) => setPassage(e.target.value)}
+        />
+        <button
+          type="button"
+          className="btn secondary"
+          style={{ marginBottom: 14, fontSize: 13, padding: '6px 12px' }}
+          disabled={generatingFromPassage}
+          onClick={generateFromPassage}
+        >
+          {generatingFromPassage ? 'Generating...' : '✨ Generate MCQs from this passage (AI)'}
+        </button>
+
         <MCQBuilder items={questions} onChange={setQuestions} />
 
         <button
@@ -936,7 +985,7 @@ function MockTestsPanel() {
                   <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid #e5e9f0' }}>
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
                     <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>
-                      {t.questions?.length || 0} questions
+                      {t.questions?.length || 0} questions{t.passage ? ' · 📖 with reading passage' : ''}
                     </div>
                     <button className="btn secondary" style={{ padding: '3px 9px', fontSize: 11, marginRight: 6 }} onClick={() => viewResults(t)}>
                       View Results
